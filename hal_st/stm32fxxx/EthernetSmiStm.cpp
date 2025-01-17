@@ -21,8 +21,8 @@ namespace hal
         , ethernetRmiiTxD1(ethernetRmiiTxD1, hal::PinConfigTypeStm::ethernet, 0)
         , phyAddress(phyAddress)
     {
-        __HAL_RCC_SYSCFG_CLK_ENABLE();
-        SYSCFG->PMC |= SYSCFG_PMC_MII_RMII_SEL; // Select RMII Mode
+        //__HAL_RCC_SYSCFG_CLK_ENABLE();
+        //SYSCFG->PMC |= SYSCFG_PMC_MII_RMII_SEL; // Select RMII Mode
 
         EnableClockEthernet(0);
 
