@@ -6,6 +6,7 @@
 #include "hal/interfaces/Ethernet.hpp"
 #include "hal_st/cortex/InterruptCortex.hpp"
 #include <array>
+#include "stm32h5xx_hal_eth.h"
 
 #if defined(HAS_PERIPHERAL_ETHERNET)
 

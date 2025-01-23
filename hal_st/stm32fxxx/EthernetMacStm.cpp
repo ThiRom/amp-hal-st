@@ -1,8 +1,15 @@
 #include "hal_st/stm32fxxx/EthernetMacStm.hpp"
 #include "infra/event/EventDispatcher.hpp"
 #include "infra/util/BitLogic.hpp"
+#include "stm32h573xx.h"
+
 
 #if defined(HAS_PERIPHERAL_ETHERNET)
+
+ETH_DMADescTypeDef  DMARxDscrTab[ETH_RX_DESC_CNT]; /* Ethernet Rx DMA Descriptors */
+ETH_DMADescTypeDef  DMATxDscrTab[ETH_TX_DESC_CNT]; /* Ethernet Tx DMA Descriptors */
+ETH_HandleTypeDef   eth{};
+ETH_HandleTypeDef   *heth{};
 
 namespace hal
 {
@@ -19,12 +26,23 @@ namespace hal
         peripheralEthernet[0]->MACA0LR = reinterpret_cast<const uint32_t*>(macAddress.data())[0];
         peripheralEthernet[0]->MACA0HR = reinterpret_cast<const uint32_t*>(macAddress.data())[1] & 0xffff;
 
-        peripheralEthernet[0]->DMAIER = ETH_DMAIER_TIE | ETH_DMAIER_RIE | ETH_DMAIER_RPSIE | ETH_DMAIER_FBEIE | ETH_DMAIER_AISE | ETH_DMAIER_NISE;
-        peripheralEthernet[0]->DMABMR = ETH_DMABMR_EDE | ETH_DMABMR_PBL_1Beat;
+        static uint8_t MACAddr[6];
+        heth = &eth;
 
-        peripheralEthernet[0]->MACCR = ((linkSpeed == LinkSpeed::fullDuplex100MHz || linkSpeed == LinkSpeed::halfDuplex100MHz) ? ETH_MACCR_FES : 0) | ((linkSpeed == LinkSpeed::fullDuplex100MHz || linkSpeed == LinkSpeed::fullDuplex10MHz) ? ETH_MACCR_DM : 0) | ETH_MACCR_IPCO | ETH_MACCR_TE | ETH_MACCR_RE;
+        eth.Instance = peripheralEthernet[0];
+        MACAddr[0] = 0x00;
+        MACAddr[1] = 0x80;
+        MACAddr[2] = 0xE1;
+        MACAddr[3] = 0x00;
+        MACAddr[4] = 0x00;
+        MACAddr[5] = 0x01;
+        eth.Init.MACAddr = &MACAddr[0];
+        eth.Init.MediaInterface = HAL_ETH_RMII_MODE;
+        eth.Init.TxDesc = DMATxDscrTab;
+        eth.Init.RxDesc = DMARxDscrTab;
+        eth.Init.RxBuffLen = 1524;
 
-        peripheralEthernet[0]->DMAOMR = ETH_DMAOMR_SR | ETH_DMAOMR_ST | ETH_DMAOMR_TSF | ETH_DMAOMR_DFRF | ETH_DMAOMR_RSF | ETH_DMAOMR_FEF;
+        HAL_ETH_Init(&eth);
     }
 
     EthernetMacStm::~EthernetMacStm()
@@ -99,45 +117,14 @@ namespace hal
 
     void EthernetMacStm::ResetDma()
     {
-        peripheralEthernet[0]->DMABMR |= ETH_DMABMR_SR;
-        while ((peripheralEthernet[0]->DMABMR & ETH_DMABMR_SR) != 0)
+        peripheralEthernet[0]->DMAMR |= ETH_DMAMR_SWR;
+        while ((peripheralEthernet[0]->DMAMR & ETH_DMAMR_SWR) != 0)
         {}
     }
 
     void EthernetMacStm::Interrupt()
     {
-        // Normal interrupt summary
-        if ((peripheralEthernet[0]->DMASR & ETH_DMASR_NIS) != 0)
-        {
-            peripheralEthernet[0]->DMASR = ETH_DMASR_NIS;
-            // Transmit status
-            if ((peripheralEthernet[0]->DMASR & ETH_DMASR_TS) != 0)
-            {
-                peripheralEthernet[0]->DMASR = ETH_DMASR_TS;
-                sendDescriptors.SentFrame();
-            }
-
-            // Receive status
-            if ((peripheralEthernet[0]->DMASR & ETH_DMASR_RS) != 0)
-            {
-                peripheralEthernet[0]->DMASR = ETH_DMASR_RS;
-                receiveDescriptors.ReceivedFrame();
-            }
-        }
-
-        // Abnormal interrupt summary
-        if ((peripheralEthernet[0]->DMASR & ETH_DMASR_AIS) != 0)
-        {
-            // Receiver process stopped: Indicates an error in our logic
-            if ((peripheralEthernet[0]->DMASR & ETH_DMASR_RPSS) != 0)
-                std::abort();
-
-            // Fatal bus error by ethernet DMA: Indicates an error in setting up descriptors
-            if ((peripheralEthernet[0]->DMASR & ETH_DMASR_FBES) != 0)
-                std::abort();
-
-            peripheralEthernet[0]->DMASR = ETH_DMASR_AIS;
-        }
+        HAL_ETH_IRQHandler(heth);
     }
 
     EthernetMacStm::ReceiveDescriptors::ReceiveDescriptors(EthernetMacStm& ethernetMac)
