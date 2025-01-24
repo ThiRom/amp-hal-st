@@ -130,17 +130,17 @@ namespace hal
     EthernetMacStm::ReceiveDescriptors::ReceiveDescriptors(EthernetMacStm& ethernetMac)
         : ethernetMac(ethernetMac)
     {
-        for (auto& descriptor : descriptors)
-        {
-            descriptor.DESC0 = ETH_DMARXDESC_RCH;
-            descriptor.DESC1 = 0;
-            descriptor.DESC3 = reinterpret_cast<uint32_t>(&descriptor + 1);
-            descriptor.DESC4 = 0;
-        }
-        descriptors.back().DESC1 |= ETH_DMARXDESC_RER;
-        descriptors.back().DESC3 = reinterpret_cast<uint32_t>(&descriptors.front());
+        // for (auto& descriptor : descriptors)
+        // {
+        //     descriptor.DESC0 = ETH_DMARXDESC_RCH;
+        //     descriptor.DESC1 = 0;
+        //     descriptor.DESC3 = reinterpret_cast<uint32_t>(&descriptor + 1);
+        //     descriptor.DESC4 = 0;
+        // }
+        // descriptors.back().DESC1 |= ETH_DMARXDESC_RER;
+        // descriptors.back().DESC3 = reinterpret_cast<uint32_t>(&descriptors.front());
 
-        peripheralEthernet[0]->DMARDLAR = reinterpret_cast<uint32_t>(descriptors.data());
+        // peripheralEthernet[0]->DMARDLAR = reinterpret_cast<uint32_t>(descriptors.data());
 
         infra::EventDispatcher::Instance().Schedule([this]()
             {
@@ -151,29 +151,29 @@ namespace hal
 
     void EthernetMacStm::ReceiveDescriptors::ReceivedFrame()
     {
-        while (receivedFramesAllocated != 0 && (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_OWN) == 0)
-        {
-            bool receiveDone = (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_OWN) == 0 && (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_LS) != 0;
-            uint16_t frameSize = (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_FL) >> 16;
-            bool errorFrame = (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_ES) != 0 && (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_LS) != 0;
-            descriptors[receiveDescriptorReceiveIndex].DESC2 = 0;
-            ++receivedFrameBuffers;
-            --receivedFramesAllocated;
-            ++receiveDescriptorReceiveIndex;
-            if (receiveDescriptorReceiveIndex == descriptors.size())
-                receiveDescriptorReceiveIndex = 0;
+        // while (receivedFramesAllocated != 0 && (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_OWN) == 0)
+        // {
+        //     bool receiveDone = (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_OWN) == 0 && (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_LS) != 0;
+        //     uint16_t frameSize = (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_FL) >> 16;
+        //     bool errorFrame = (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_ES) != 0 && (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_LS) != 0;
+        //     descriptors[receiveDescriptorReceiveIndex].DESC2 = 0;
+        //     ++receivedFrameBuffers;
+        //     --receivedFramesAllocated;
+        //     ++receiveDescriptorReceiveIndex;
+        //     if (receiveDescriptorReceiveIndex == descriptors.size())
+        //         receiveDescriptorReceiveIndex = 0;
 
-            RequestReceiveBuffer();
+        //     RequestReceiveBuffer();
 
-            if (receiveDone)
-            {
-                if (!errorFrame)
-                    ethernetMac.GetObserver().ReceivedFrame(receivedFrameBuffers, frameSize);
-                else
-                    ethernetMac.GetObserver().ReceivedErrorFrame(receivedFrameBuffers, frameSize);
-                receivedFrameBuffers = 0;
-            }
-        }
+        //     if (receiveDone)
+        //     {
+        //         if (!errorFrame)
+        //             ethernetMac.GetObserver().ReceivedFrame(receivedFrameBuffers, frameSize);
+        //         else
+        //             ethernetMac.GetObserver().ReceivedErrorFrame(receivedFrameBuffers, frameSize);
+        //         receivedFrameBuffers = 0;
+        //     }
+        // }
     }
 
     void EthernetMacStm::ReceiveDescriptors::RequestReceiveBuffers()
@@ -185,25 +185,25 @@ namespace hal
 
     bool EthernetMacStm::ReceiveDescriptors::RequestReceiveBuffer()
     {
-        assert((descriptors[receiveDescriptorAllocatedIndex].DESC0 & ETH_DMARXDESC_OWN) == 0);
+        // assert((descriptors[receiveDescriptorAllocatedIndex].DESC0 & ETH_DMARXDESC_OWN) == 0);
 
-        infra::ByteRange buffer = ethernetMac.GetObserver().RequestReceiveBuffer();
-        if (buffer.empty())
-            return false;
+        // infra::ByteRange buffer = ethernetMac.GetObserver().RequestReceiveBuffer();
+        // if (buffer.empty())
+        //     return false;
 
-        descriptors[receiveDescriptorAllocatedIndex].DESC0 &= ~(ETH_DMARXDESC_MAMPCE | ETH_DMARXDESC_CE | ETH_DMARXDESC_DBE | ETH_DMARXDESC_RE | ETH_DMARXDESC_RWT | ETH_DMARXDESC_LC | ETH_DMARXDESC_IPV4HCE | ETH_DMARXDESC_LS | ETH_DMARXDESC_VLAN | ETH_DMARXDESC_OE | ETH_DMARXDESC_LE | ETH_DMARXDESC_SAF | ETH_DMARXDESC_DE | ETH_DMARXDESC_ES | ETH_DMARXDESC_FL | ETH_DMARXDESC_AFM);
-        descriptors[receiveDescriptorAllocatedIndex].DESC1 = buffer.size() | ETH_DMARXDESC_RCH;
-        descriptors[receiveDescriptorAllocatedIndex].DESC2 = reinterpret_cast<uint32_t>(buffer.begin());
-        descriptors[receiveDescriptorAllocatedIndex].DESC0 |= ETH_DMARXDESC_OWN;
+        // descriptors[receiveDescriptorAllocatedIndex].DESC0 &= ~(ETH_DMARXDESC_MAMPCE | ETH_DMARXDESC_CE | ETH_DMARXDESC_DBE | ETH_DMARXDESC_RE | ETH_DMARXDESC_RWT | ETH_DMARXDESC_LC | ETH_DMARXDESC_IPV4HCE | ETH_DMARXDESC_LS | ETH_DMARXDESC_VLAN | ETH_DMARXDESC_OE | ETH_DMARXDESC_LE | ETH_DMARXDESC_SAF | ETH_DMARXDESC_DE | ETH_DMARXDESC_ES | ETH_DMARXDESC_FL | ETH_DMARXDESC_AFM);
+        // descriptors[receiveDescriptorAllocatedIndex].DESC1 = buffer.size() | ETH_DMARXDESC_RCH;
+        // descriptors[receiveDescriptorAllocatedIndex].DESC2 = reinterpret_cast<uint32_t>(buffer.begin());
+        // descriptors[receiveDescriptorAllocatedIndex].DESC0 |= ETH_DMARXDESC_OWN;
 
-        __DSB();
-        peripheralEthernet[0]->DMASR = ETH_DMASR_RBUS;
-        peripheralEthernet[0]->DMARPDR = 1;
+        // __DSB();
+        // peripheralEthernet[0]->DMASR = ETH_DMASR_RBUS;
+        // peripheralEthernet[0]->DMARPDR = 1;
 
-        ++receivedFramesAllocated;
-        ++receiveDescriptorAllocatedIndex;
-        if (receiveDescriptorAllocatedIndex == descriptors.size())
-            receiveDescriptorAllocatedIndex = 0;
+        // ++receivedFramesAllocated;
+        // ++receiveDescriptorAllocatedIndex;
+        // if (receiveDescriptorAllocatedIndex == descriptors.size())
+        //     receiveDescriptorAllocatedIndex = 0;
 
         return true;
     }
@@ -211,62 +211,62 @@ namespace hal
     EthernetMacStm::SendDescriptors::SendDescriptors(EthernetMacStm& ethernetMac)
         : ethernetMac(ethernetMac)
     {
-        for (auto& descriptor : descriptors)
-        {
-            descriptor.DESC0 = ETH_DMATXDESC_TCH | ETH_DMATXDESC_CIC_TCPUDPICMP_FULL | ETH_DMATXDESC_IC;
-            descriptor.DESC3 = reinterpret_cast<uint32_t>(&descriptor + 1);
-        }
-        descriptors.back().DESC0 |= ETH_DMATXDESC_TER;
-        descriptors.back().DESC3 = reinterpret_cast<uint32_t>(&descriptors.front());
+        // for (auto& descriptor : descriptors)
+        // {
+        //     descriptor.DESC0 = ETH_DMATXDESC_TCH | ETH_DMATXDESC_CIC_TCPUDPICMP_FULL | ETH_DMATXDESC_IC;
+        //     descriptor.DESC3 = reinterpret_cast<uint32_t>(&descriptor + 1);
+        // }
+        // descriptors.back().DESC0 |= ETH_DMATXDESC_TER;
+        // descriptors.back().DESC3 = reinterpret_cast<uint32_t>(&descriptors.front());
 
-        peripheralEthernet[0]->DMATDLAR = reinterpret_cast<uint32_t>(descriptors.data());
+        // peripheralEthernet[0]->DMATDLAR = reinterpret_cast<uint32_t>(descriptors.data());
     }
 
     void EthernetMacStm::SendDescriptors::SendBuffer(infra::ConstByteRange data, bool last)
     {
-        assert((descriptors[sendDescriptorIndex].DESC0 & ETH_DMATXDESC_OWN) == 0);
-        descriptors[sendDescriptorIndex].DESC1 = data.size();
-        descriptors[sendDescriptorIndex].DESC2 = reinterpret_cast<uint32_t>(data.begin());
+        // assert((descriptors[sendDescriptorIndex].DESC0 & ETH_DMATXDESC_OWN) == 0);
+        // descriptors[sendDescriptorIndex].DESC1 = data.size();
+        // descriptors[sendDescriptorIndex].DESC2 = reinterpret_cast<uint32_t>(data.begin());
 
-        if (sendFirst)
-            descriptors[sendDescriptorIndex].DESC0 |= ETH_DMATXDESC_FS;
-        else
-            descriptors[sendDescriptorIndex].DESC0 &= ~ETH_DMATXDESC_FS;
+        // if (sendFirst)
+        //     descriptors[sendDescriptorIndex].DESC0 |= ETH_DMATXDESC_FS;
+        // else
+        //     descriptors[sendDescriptorIndex].DESC0 &= ~ETH_DMATXDESC_FS;
 
-        if (last)
-            descriptors[sendDescriptorIndex].DESC0 |= ETH_DMATXDESC_LS;
-        else
-            descriptors[sendDescriptorIndex].DESC0 &= ~ETH_DMATXDESC_LS;
+        // if (last)
+        //     descriptors[sendDescriptorIndex].DESC0 |= ETH_DMATXDESC_LS;
+        // else
+        //     descriptors[sendDescriptorIndex].DESC0 &= ~ETH_DMATXDESC_LS;
 
-        descriptors[sendDescriptorIndex].DESC0 &= ~(ETH_DMATXDESC_DB | ETH_DMATXDESC_UF | ETH_DMATXDESC_ED | ETH_DMATXDESC_CC | ETH_DMATXDESC_EC | ETH_DMATXDESC_LCO | ETH_DMATXDESC_NC | ETH_DMATXDESC_LCA | ETH_DMATXDESC_PCE | ETH_DMATXDESC_FF | ETH_DMATXDESC_JT | ETH_DMATXDESC_ES | ETH_DMATXDESC_IHE);
+        // descriptors[sendDescriptorIndex].DESC0 &= ~(ETH_DMATXDESC_DB | ETH_DMATXDESC_UF | ETH_DMATXDESC_ED | ETH_DMATXDESC_CC | ETH_DMATXDESC_EC | ETH_DMATXDESC_LCO | ETH_DMATXDESC_NC | ETH_DMATXDESC_LCA | ETH_DMATXDESC_PCE | ETH_DMATXDESC_FF | ETH_DMATXDESC_JT | ETH_DMATXDESC_ES | ETH_DMATXDESC_IHE);
 
-        if (sendFirst)
-            sendDescriptorIndexFirst = sendDescriptorIndex;
-        else
-            descriptors[sendDescriptorIndex].DESC0 |= ETH_DMATXDESC_OWN;
-        if (last)
-            descriptors[sendDescriptorIndexFirst].DESC0 |= ETH_DMATXDESC_OWN;
-        __DSB();
-        sendFirst = last;
+        // if (sendFirst)
+        //     sendDescriptorIndexFirst = sendDescriptorIndex;
+        // else
+        //     descriptors[sendDescriptorIndex].DESC0 |= ETH_DMATXDESC_OWN;
+        // if (last)
+        //     descriptors[sendDescriptorIndexFirst].DESC0 |= ETH_DMATXDESC_OWN;
+        // __DSB();
+        // sendFirst = last;
 
-        peripheralEthernet[0]->DMATPDR = 1;
+        // peripheralEthernet[0]->DMATPDR = 1;
 
-        ++sendDescriptorIndex;
-        if (sendDescriptorIndex == descriptors.size())
-            sendDescriptorIndex = 0;
+        // ++sendDescriptorIndex;
+        // if (sendDescriptorIndex == descriptors.size())
+        //     sendDescriptorIndex = 0;
     }
 
     void EthernetMacStm::SendDescriptors::SentFrame()
     {
-        uint32_t previousDescriptor = sendDescriptorIndex != 0 ? sendDescriptorIndex - 1 : descriptors.size() - 1;
+        // uint32_t previousDescriptor = sendDescriptorIndex != 0 ? sendDescriptorIndex - 1 : descriptors.size() - 1;
 
-        bool sentDone = (descriptors[previousDescriptor].DESC0 & ETH_DMATXDESC_LS) != 0 && (descriptors[previousDescriptor].DESC0 & ETH_DMATXDESC_OWN) == 0;
-        assert(sentDone);
-        if (sentDone)
-        {
-            descriptors[previousDescriptor].DESC0 &= ~ETH_DMATXDESC_LS;
-            ethernetMac.GetObserver().SentFrame();
-        }
+        // bool sentDone = (descriptors[previousDescriptor].DESC0 & ETH_DMATXDESC_LS) != 0 && (descriptors[previousDescriptor].DESC0 & ETH_DMATXDESC_OWN) == 0;
+        // assert(sentDone);
+        // if (sentDone)
+        // {
+        //     descriptors[previousDescriptor].DESC0 &= ~ETH_DMATXDESC_LS;
+        //     ethernetMac.GetObserver().SentFrame();
+        // }
     }
 }
 
