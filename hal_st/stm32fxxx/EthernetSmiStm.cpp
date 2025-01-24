@@ -115,20 +115,91 @@ namespace hal
 
     uint16_t EthernetSmiStm::ReadPhyRegister(uint16_t reg)
     {
+        uint32_t tickstart;
+        uint32_t tmpreg;
         uint32_t RegValue;
 
-        HAL_ETH_ReadPHYRegister(ETH_HandleTypeDef *heth, phyAddress, reg, &RegValue);
+        /* Check for the Busy flag */
+        if (READ_BIT(peripheralEthernet[0]->MACMDIOAR, ETH_MACMDIOAR_MB) != (uint32_t)RESET)
+        {
+            return 0;
+        }
+
+        /* Get the  MACMDIOAR value */
+        WRITE_REG(tmpreg, peripheralEthernet[0]->MACMDIOAR);
+
+        /* Prepare the MDIO Address Register value
+            - Set the PHY device address
+            - Set the PHY register address
+            - Set the read mode
+            - Set the MII Busy bit */
+
+        MODIFY_REG(tmpreg, ETH_MACMDIOAR_PA, (phyAddress << 21));
+        MODIFY_REG(tmpreg, ETH_MACMDIOAR_RDA, (reg << 16));
+        MODIFY_REG(tmpreg, ETH_MACMDIOAR_MOC, ETH_MACMDIOAR_MOC_RD);
+        SET_BIT(tmpreg, ETH_MACMDIOAR_MB);
+
+        /* Write the result value into the MDII Address register */
+        WRITE_REG(peripheralEthernet[0]->MACMDIOAR, tmpreg);
+
+        tickstart = HAL_GetTick();
+
+        /* Wait for the Busy flag */
+        while (READ_BIT(peripheralEthernet[0]->MACMDIOAR, ETH_MACMDIOAR_MB) > 0U)
+        {
+            if (((HAL_GetTick() - tickstart) > ETH_MDIO_BUS_TIMEOUT))
+            {
+                return 0;
+            }
+        }
+
+        /* Get MACMIIDR value */
+        WRITE_REG(RegValue, (uint16_t)peripheralEthernet[0]->MACMDIODR);
 
         return (uint16_t)RegValue;
     }
 
     void EthernetSmiStm::WritePhyRegister(uint16_t reg, uint16_t value)
     {
-        peripheralEthernet[0]->MACMIIDR = value;
-        peripheralEthernet[0]->MACMIIAR = (peripheralEthernet[0]->MACMIIAR & ETH_MACMIIAR_CR) | ((static_cast<uint32_t>(phyAddress) << 11) & ETH_MACMIIAR_PA) | ((static_cast<uint32_t>(reg) << 6) & ETH_MACMIIAR_MR) | ETH_MACMIIAR_MW | ETH_MACMIIAR_MB;
+        uint32_t tickstart;
+        uint32_t tmpreg;
 
-        while (peripheralEthernet[0]->MACMIIAR & ETH_MACMIIAR_MB != 0)
-        {}
+        /* Check for the Busy flag */
+        if (READ_BIT(peripheralEthernet[0]->MACMDIOAR, ETH_MACMDIOAR_MB) != (uint32_t)RESET)
+        {
+            return;
+        }
+
+        /* Get the  MACMDIOAR value */
+        WRITE_REG(tmpreg, peripheralEthernet[0]->MACMDIOAR);
+
+        /* Prepare the MDIO Address Register value
+            - Set the PHY device address
+            - Set the PHY register address
+            - Set the write mode
+            - Set the MII Busy bit */
+
+        MODIFY_REG(tmpreg, ETH_MACMDIOAR_PA, (phyAddress << 21));
+        MODIFY_REG(tmpreg, ETH_MACMDIOAR_RDA, (reg << 16));
+        MODIFY_REG(tmpreg, ETH_MACMDIOAR_MOC, ETH_MACMDIOAR_MOC_WR);
+        SET_BIT(tmpreg, ETH_MACMDIOAR_MB);
+
+        /* Give the value to the MII data register */
+        WRITE_REG(ETH->MACMDIODR, (uint16_t)reg);
+
+        /* Write the result value into the MII Address register */
+        WRITE_REG(ETH->MACMDIOAR, tmpreg);
+
+        tickstart = HAL_GetTick();
+
+        /* Wait for the Busy flag */
+        while (READ_BIT(peripheralEthernet[0]->MACMDIOAR, ETH_MACMDIOAR_MB) > 0U)
+        {
+            if (((HAL_GetTick() - tickstart) > ETH_MDIO_BUS_TIMEOUT))
+            {
+                return;
+            }
+        }
     }
 
     void EthernetSmiStm::Delay(infra::Duration duration)
