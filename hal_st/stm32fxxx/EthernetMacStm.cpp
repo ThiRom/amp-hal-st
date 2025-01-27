@@ -2,6 +2,7 @@
 #include "infra/event/EventDispatcher.hpp"
 #include "infra/util/BitLogic.hpp"
 #include "stm32h573xx.h"
+#include <cstdint>
 
 
 #if defined(HAS_PERIPHERAL_ETHERNET)
@@ -10,6 +11,7 @@ ETH_DMADescTypeDef  DMARxDscrTab[ETH_RX_DESC_CNT]; /* Ethernet Rx DMA Descriptor
 ETH_DMADescTypeDef  DMATxDscrTab[ETH_TX_DESC_CNT]; /* Ethernet Tx DMA Descriptors */
 ETH_HandleTypeDef   eth{};
 ETH_HandleTypeDef   *heth{};
+ETH_TxPacketConfigTypeDef TxConfig;
 
 namespace hal
 {
@@ -43,6 +45,11 @@ namespace hal
         eth.Init.RxBuffLen = 1524;
 
         HAL_ETH_Init(&eth);
+
+        memset(&TxConfig, 0, sizeof(ETH_TxPacketConfigTypeDef));
+	    TxConfig.Attributes = ETH_TX_PACKETS_FEATURES_CSUM | ETH_TX_PACKETS_FEATURES_CRCPAD;
+	    TxConfig.ChecksumCtrl = ETH_CHECKSUM_IPHDR_PAYLOAD_INSERT_PHDR_CALC;
+	    TxConfig.CRCPadCtrl = ETH_CRC_PAD_INSERT;
     }
 
     EthernetMacStm::~EthernetMacStm()
@@ -187,9 +194,9 @@ namespace hal
     {
         // assert((descriptors[receiveDescriptorAllocatedIndex].DESC0 & ETH_DMARXDESC_OWN) == 0);
 
-        // infra::ByteRange buffer = ethernetMac.GetObserver().RequestReceiveBuffer();
-        // if (buffer.empty())
-        //     return false;
+        infra::ByteRange buffer = ethernetMac.GetObserver().RequestReceiveBuffer();
+        if (buffer.empty())
+             return false;
 
         // descriptors[receiveDescriptorAllocatedIndex].DESC0 &= ~(ETH_DMARXDESC_MAMPCE | ETH_DMARXDESC_CE | ETH_DMARXDESC_DBE | ETH_DMARXDESC_RE | ETH_DMARXDESC_RWT | ETH_DMARXDESC_LC | ETH_DMARXDESC_IPV4HCE | ETH_DMARXDESC_LS | ETH_DMARXDESC_VLAN | ETH_DMARXDESC_OE | ETH_DMARXDESC_LE | ETH_DMARXDESC_SAF | ETH_DMARXDESC_DE | ETH_DMARXDESC_ES | ETH_DMARXDESC_FL | ETH_DMARXDESC_AFM);
         // descriptors[receiveDescriptorAllocatedIndex].DESC1 = buffer.size() | ETH_DMARXDESC_RCH;
