@@ -2,8 +2,8 @@
 #include "infra/event/EventDispatcher.hpp"
 #include "infra/util/BitLogic.hpp"
 #include "stm32h573xx.h"
+#include <cstddef>
 #include <cstdint>
-
 
 #if defined(HAS_PERIPHERAL_ETHERNET)
 
@@ -169,9 +169,7 @@ namespace hal
         //     ++receiveDescriptorReceiveIndex;
         //     if (receiveDescriptorReceiveIndex == descriptors.size())
         //         receiveDescriptorReceiveIndex = 0;
-
-        //     RequestReceiveBuffer();
-
+        //      RequestReceiveBuffer();
         //     if (receiveDone)
         //     {
         //         if (!errorFrame)
@@ -181,22 +179,38 @@ namespace hal
         //         receivedFrameBuffers = 0;
         //     }
         // }
+
+        void* p;
+        do
+        {
+            p = nullptr;
+            p = RequestReceiveBuffer();
+            if(p != nullptr)
+            {
+                //ethernetMac.GetObserver().ReceivedFrame(receivedFrameBuffers, frameSize);
+            }
+        }
+        while(p != nullptr);
     }
 
     void EthernetMacStm::ReceiveDescriptors::RequestReceiveBuffers()
     {
-        while (receivedFramesAllocated != descriptors.size())
-            if (!RequestReceiveBuffer())
-                break;
+        // while (receivedFramesAllocated != descriptors.size())
+        //     if (!RequestReceiveBuffer())
+        //         break;
+
+        RequestReceiveBuffer();
     }
 
-    bool EthernetMacStm::ReceiveDescriptors::RequestReceiveBuffer()
+    void* EthernetMacStm::ReceiveDescriptors::RequestReceiveBuffer()
     {
         // assert((descriptors[receiveDescriptorAllocatedIndex].DESC0 & ETH_DMARXDESC_OWN) == 0);
 
-        infra::ByteRange buffer = ethernetMac.GetObserver().RequestReceiveBuffer();
-        if (buffer.empty())
-             return false;
+        void* buffer = ethernetMac.GetObserver().RequestReceiveBuffer();
+        if (buffer == nullptr)
+             return buffer;
+
+        HAL_ETH_ReadData(heth, (void**)&buffer);
 
         // descriptors[receiveDescriptorAllocatedIndex].DESC0 &= ~(ETH_DMARXDESC_MAMPCE | ETH_DMARXDESC_CE | ETH_DMARXDESC_DBE | ETH_DMARXDESC_RE | ETH_DMARXDESC_RWT | ETH_DMARXDESC_LC | ETH_DMARXDESC_IPV4HCE | ETH_DMARXDESC_LS | ETH_DMARXDESC_VLAN | ETH_DMARXDESC_OE | ETH_DMARXDESC_LE | ETH_DMARXDESC_SAF | ETH_DMARXDESC_DE | ETH_DMARXDESC_ES | ETH_DMARXDESC_FL | ETH_DMARXDESC_AFM);
         // descriptors[receiveDescriptorAllocatedIndex].DESC1 = buffer.size() | ETH_DMARXDESC_RCH;
@@ -212,7 +226,7 @@ namespace hal
         // if (receiveDescriptorAllocatedIndex == descriptors.size())
         //     receiveDescriptorAllocatedIndex = 0;
 
-        return true;
+        return buffer;
     }
 
     EthernetMacStm::SendDescriptors::SendDescriptors(EthernetMacStm& ethernetMac)
@@ -231,6 +245,17 @@ namespace hal
 
     void EthernetMacStm::SendDescriptors::SendBuffer(infra::ConstByteRange data, bool last)
     {
+        ETH_BufferTypeDef buf;
+
+        buf.buffer = (uint8_t*)&data;
+        buf.len = data.size();
+        buf.next = NULL;
+
+        TxConfig.Length = data.size();
+        TxConfig.TxBuffer = &buf;
+
+        HAL_ETH_Transmit(heth, &TxConfig, 20); //20 msec timeout
+
         // assert((descriptors[sendDescriptorIndex].DESC0 & ETH_DMATXDESC_OWN) == 0);
         // descriptors[sendDescriptorIndex].DESC1 = data.size();
         // descriptors[sendDescriptorIndex].DESC2 = reinterpret_cast<uint32_t>(data.begin());
@@ -272,7 +297,7 @@ namespace hal
         // if (sentDone)
         // {
         //     descriptors[previousDescriptor].DESC0 &= ~ETH_DMATXDESC_LS;
-        //     ethernetMac.GetObserver().SentFrame();
+             ethernetMac.GetObserver().SentFrame();
         // }
     }
 }

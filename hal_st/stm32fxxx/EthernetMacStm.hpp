@@ -38,7 +38,7 @@ namespace hal
             void RequestReceiveBuffers();
 
         private:
-            bool RequestReceiveBuffer();
+            void* RequestReceiveBuffer();
 
         private:
             EthernetMacStm& ethernetMac;
