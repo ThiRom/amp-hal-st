@@ -131,7 +131,61 @@ namespace hal
 
     void EthernetMacStm::Interrupt()
     {
-        HAL_ETH_IRQHandler(heth);
+        // // Normal interrupt summary
+        // if ((peripheralEthernet[0]->DMASR & ETH_DMASR_NIS) != 0)
+        // {
+        //     peripheralEthernet[0]->DMASR = ETH_DMASR_NIS;
+        //     // Transmit status
+        //     if ((peripheralEthernet[0]->DMASR & ETH_DMASR_TS) != 0)
+        //     {
+        //         peripheralEthernet[0]->DMASR = ETH_DMASR_TS;
+        //         sendDescriptors.SentFrame();
+        //     }
+
+        //     // Receive status
+        //     if ((peripheralEthernet[0]->DMASR & ETH_DMASR_RS) != 0)
+        //     {
+        //         peripheralEthernet[0]->DMASR = ETH_DMASR_RS;
+        //         receiveDescriptors.ReceivedFrame();
+        //     }
+        // }
+
+        // // Abnormal interrupt summary
+        // if ((peripheralEthernet[0]->DMASR & ETH_DMASR_AIS) != 0)
+        // {
+        //     // Receiver process stopped: Indicates an error in our logic
+        //     if ((peripheralEthernet[0]->DMASR & ETH_DMASR_RPSS) != 0)
+        //         std::abort();
+
+        //     // Fatal bus error by ethernet DMA: Indicates an error in setting up descriptors
+        //     if ((peripheralEthernet[0]->DMASR & ETH_DMASR_FBES) != 0)
+        //         std::abort();
+
+        //     peripheralEthernet[0]->DMASR = ETH_DMASR_AIS;
+        // }
+
+        uint32_t mac_flag = READ_REG(heth->Instance->MACISR);
+        uint32_t dma_flag = READ_REG(heth->Instance->DMACSR);
+        uint32_t dma_itsource = READ_REG(heth->Instance->DMACIER);
+        uint32_t exti_flag = READ_REG(EXTI->RPR2);
+
+        /* Packet received */
+        if (((dma_flag & ETH_DMACSR_RI) != 0U) && ((dma_itsource & ETH_DMACIER_RIE) != 0U))
+        {
+            /* Clear the Eth DMA Rx IT pending bits */
+            __HAL_ETH_DMA_CLEAR_IT(heth, ETH_DMACSR_RI | ETH_DMACSR_NIS);
+
+            sendDescriptors.SentFrame();
+        }
+
+        /* Packet transmitted */
+        if (((dma_flag & ETH_DMACSR_TI) != 0U) && ((dma_itsource & ETH_DMACIER_TIE) != 0U))
+        {
+            /* Clear the Eth DMA Tx IT pending bits */
+            __HAL_ETH_DMA_CLEAR_IT(heth, ETH_DMACSR_TI | ETH_DMACSR_NIS);
+
+            receiveDescriptors.ReceivedFrame();
+        }
     }
 
     EthernetMacStm::ReceiveDescriptors::ReceiveDescriptors(EthernetMacStm& ethernetMac)
@@ -183,11 +237,12 @@ namespace hal
         void* p;
         do
         {
-            p = nullptr;
             p = RequestReceiveBuffer();
             if(p != nullptr)
             {
-                //ethernetMac.GetObserver().ReceivedFrame(receivedFrameBuffers, frameSize);
+                ++receivedFrameBuffers;
+                uint16_t frameSize = heth->RxDescList.RxDataLength; //RT: Check!!
+                ethernetMac.GetObserver().ReceivedFrame(receivedFrameBuffers, frameSize);
             }
         }
         while(p != nullptr);
