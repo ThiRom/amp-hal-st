@@ -251,6 +251,7 @@ namespace hal
                 ++receivedFrameBuffers;
                 uint16_t frameSize = heth->RxDescList.RxDataLength; //RT: Check!!
                 ethernetMac.GetObserver().ReceivedFrame(receivedFrameBuffers, frameSize);
+                receivedFrameBuffers = 0;
             }
         }
         while(receiveDone);
