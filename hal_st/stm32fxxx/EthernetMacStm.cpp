@@ -344,6 +344,8 @@ namespace hal
 
     bool EthernetMacStm::ReceiveDescriptors::RequestReceiveBuffer()
     {
+        // RT: copied from readdata of HAL_ETH
+
         uint32_t descidx;
         ETH_DMADescTypeDef *dmarxdesc;
         uint32_t desccnt = 0U;
