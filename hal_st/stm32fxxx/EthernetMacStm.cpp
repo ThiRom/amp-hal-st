@@ -7,6 +7,13 @@
 
 #if defined(HAS_PERIPHERAL_ETHERNET)
 
+/* Helper macros for RX descriptor handling */
+#define INCR_RX_DESC_INDEX(inx, offset) do {\
+                                             (inx) += (offset);\
+                                             if ((inx) >= (uint32_t)ETH_RX_DESC_CNT){\
+                                             (inx) = ((inx) - (uint32_t)ETH_RX_DESC_CNT);}\
+                                           } while (0)
+
 ETH_DMADescTypeDef  DMARxDscrTab[ETH_RX_DESC_CNT]; /* Ethernet Rx DMA Descriptors */
 ETH_DMADescTypeDef  DMATxDscrTab[ETH_TX_DESC_CNT]; /* Ethernet Tx DMA Descriptors */
 ETH_HandleTypeDef   eth{};
@@ -223,7 +230,9 @@ namespace hal
         //     ++receiveDescriptorReceiveIndex;
         //     if (receiveDescriptorReceiveIndex == descriptors.size())
         //         receiveDescriptorReceiveIndex = 0;
-        //      RequestReceiveBuffer();
+
+        //     RequestReceiveBuffer();
+
         //     if (receiveDone)
         //     {
         //         if (!errorFrame)
@@ -233,19 +242,18 @@ namespace hal
         //         receivedFrameBuffers = 0;
         //     }
         // }
-
-        void* p;
+        bool receiveDone;
         do
         {
-            p = RequestReceiveBuffer();
-            if(p != nullptr)
+            receiveDone = RequestReceiveBuffer();
+            if(receiveDone)
             {
                 ++receivedFrameBuffers;
                 uint16_t frameSize = heth->RxDescList.RxDataLength; //RT: Check!!
                 ethernetMac.GetObserver().ReceivedFrame(receivedFrameBuffers, frameSize);
             }
         }
-        while(p != nullptr);
+        while(receiveDone);
     }
 
     void EthernetMacStm::ReceiveDescriptors::RequestReceiveBuffers()
@@ -257,31 +265,170 @@ namespace hal
         RequestReceiveBuffer();
     }
 
-    void* EthernetMacStm::ReceiveDescriptors::RequestReceiveBuffer()
+    /**
+    * @brief  This function gives back Rx Desc of the last received Packet
+    *         to the DMA, so ETH DMA will be able to use these descriptors
+    *         to receive next Packets.
+    * @param  heth: pointer to a ETH_HandleTypeDef structure that contains
+    *         the configuration information for ETHERNET module
+    * @retval HAL status
+    */
+    void EthernetMacStm::ReceiveDescriptors::ETH_UpdateDescriptor(ETH_HandleTypeDef *heth)
     {
-        // assert((descriptors[receiveDescriptorAllocatedIndex].DESC0 & ETH_DMARXDESC_OWN) == 0);
+        uint32_t descidx;
+        uint32_t tailidx;
+        uint32_t desccount;
+        ETH_DMADescTypeDef *dmarxdesc;
+        infra::ByteRange buff;
+        uint8_t allocStatus = 1U;
 
-        void* buffer = ethernetMac.GetObserver().RequestReceiveBuffer();
-        if (buffer == nullptr)
-             return buffer;
+        descidx = heth->RxDescList.RxBuildDescIdx;
+        dmarxdesc = (ETH_DMADescTypeDef *)heth->RxDescList.RxDesc[descidx];
+        desccount = heth->RxDescList.RxBuildDescCnt;
 
-        HAL_ETH_ReadData(heth, (void**)&buffer);
+        while ((desccount > 0U) && (allocStatus != 0U))
+        {
+            /* Check if a buffer's attached the descriptor */
+            if (READ_REG(dmarxdesc->BackupAddr0) == 0U)
+            {
+                /* Get a new buffer. */
+                buff = ethernetMac.GetObserver().RequestReceiveBuffer();
 
-        // descriptors[receiveDescriptorAllocatedIndex].DESC0 &= ~(ETH_DMARXDESC_MAMPCE | ETH_DMARXDESC_CE | ETH_DMARXDESC_DBE | ETH_DMARXDESC_RE | ETH_DMARXDESC_RWT | ETH_DMARXDESC_LC | ETH_DMARXDESC_IPV4HCE | ETH_DMARXDESC_LS | ETH_DMARXDESC_VLAN | ETH_DMARXDESC_OE | ETH_DMARXDESC_LE | ETH_DMARXDESC_SAF | ETH_DMARXDESC_DE | ETH_DMARXDESC_ES | ETH_DMARXDESC_FL | ETH_DMARXDESC_AFM);
-        // descriptors[receiveDescriptorAllocatedIndex].DESC1 = buffer.size() | ETH_DMARXDESC_RCH;
-        // descriptors[receiveDescriptorAllocatedIndex].DESC2 = reinterpret_cast<uint32_t>(buffer.begin());
-        // descriptors[receiveDescriptorAllocatedIndex].DESC0 |= ETH_DMARXDESC_OWN;
+                if (buff.empty())
+                {
+                    allocStatus = 0U;
+                }
+                else
+                {
+                    WRITE_REG(dmarxdesc->BackupAddr0, reinterpret_cast<uint32_t>(buff.begin()));
+                    WRITE_REG(dmarxdesc->DESC0, reinterpret_cast<uint32_t>(buff.begin()));
+                }
+            }
 
-        // __DSB();
-        // peripheralEthernet[0]->DMASR = ETH_DMASR_RBUS;
-        // peripheralEthernet[0]->DMARPDR = 1;
+            if (allocStatus != 0U)
+            {
 
-        // ++receivedFramesAllocated;
-        // ++receiveDescriptorAllocatedIndex;
-        // if (receiveDescriptorAllocatedIndex == descriptors.size())
-        //     receiveDescriptorAllocatedIndex = 0;
+                if (heth->RxDescList.ItMode != 0U)
+                {
+                    WRITE_REG(dmarxdesc->DESC3, ETH_DMARXNDESCRF_OWN | ETH_DMARXNDESCRF_BUF1V | ETH_DMARXNDESCRF_IOC);
+                }
+                else
+                {
+                    WRITE_REG(dmarxdesc->DESC3, ETH_DMARXNDESCRF_OWN | ETH_DMARXNDESCRF_BUF1V);
+                }
 
-        return buffer;
+                /* Increment current rx descriptor index */
+                INCR_RX_DESC_INDEX(descidx, 1U);
+                /* Get current descriptor address */
+                dmarxdesc = (ETH_DMADescTypeDef *)heth->RxDescList.RxDesc[descidx];
+                desccount--;
+            }
+        }
+
+        if (heth->RxDescList.RxBuildDescCnt != desccount)
+        {
+            /* Set the tail pointer index */
+            tailidx = (descidx + 1U) % ETH_RX_DESC_CNT;
+
+            /* DMB instruction to avoid race condition */
+            __DMB();
+
+            /* Set the Tail pointer address */
+            WRITE_REG(heth->Instance->DMACRDTPR, ((uint32_t)(heth->Init.RxDesc + (tailidx))));
+
+            heth->RxDescList.RxBuildDescIdx = descidx;
+            heth->RxDescList.RxBuildDescCnt = desccount;
+        }
+    }
+
+    bool EthernetMacStm::ReceiveDescriptors::RequestReceiveBuffer()
+    {
+        uint32_t descidx;
+        ETH_DMADescTypeDef *dmarxdesc;
+        uint32_t desccnt = 0U;
+        uint32_t desccntmax;
+        uint32_t bufflength;
+        uint8_t rxdataready = 0U;
+
+        if (heth->gState != HAL_ETH_STATE_STARTED)
+        {
+            return false;
+        }
+
+        descidx = heth->RxDescList.RxDescIdx;
+        dmarxdesc = (ETH_DMADescTypeDef *)heth->RxDescList.RxDesc[descidx];
+        desccntmax = ETH_RX_DESC_CNT - heth->RxDescList.RxBuildDescCnt;
+
+        /* Check if descriptor is not owned by DMA */
+        while ((READ_BIT(dmarxdesc->DESC3, ETH_DMARXNDESCWBF_OWN) == (uint32_t)RESET) && (desccnt < desccntmax)
+                && (rxdataready == 0U))
+        {
+            if (READ_BIT(dmarxdesc->DESC3,  ETH_DMARXNDESCWBF_CTXT)  != (uint32_t)RESET)
+            {
+                /* Get timestamp high */
+                heth->RxDescList.TimeStamp.TimeStampHigh = dmarxdesc->DESC1;
+                /* Get timestamp low */
+                heth->RxDescList.TimeStamp.TimeStampLow  = dmarxdesc->DESC0;
+            }
+            if ((READ_BIT(dmarxdesc->DESC3, ETH_DMARXNDESCWBF_FD) != (uint32_t)RESET) || (heth->RxDescList.pRxStart != NULL))
+            {
+                /* Check if first descriptor */
+                if (READ_BIT(dmarxdesc->DESC3, ETH_DMARXNDESCWBF_FD) != (uint32_t)RESET)
+                {
+                    heth->RxDescList.RxDescCnt = 0;
+                    heth->RxDescList.RxDataLength = 0;
+                }
+
+                /* Get the Frame Length of the received packet: substruct 4 bytes of the CRC */
+                bufflength = READ_BIT(dmarxdesc->DESC3, ETH_DMARXNDESCWBF_PL) - heth->RxDescList.RxDataLength;
+
+                /* Check if last descriptor */
+                if (READ_BIT(dmarxdesc->DESC3, ETH_DMARXNDESCWBF_LD) != (uint32_t)RESET)
+                {
+                    /* Save Last descriptor index */
+                    heth->RxDescList.pRxLastRxDesc = dmarxdesc->DESC3;
+
+                    /* Packet ready */
+                    rxdataready = 1;
+                }
+
+                /* Link data */
+
+                heth->RxDescList.RxDescCnt++;
+                heth->RxDescList.RxDataLength += bufflength;
+
+                /* Clear buffer pointer */
+                dmarxdesc->BackupAddr0 = 0;
+            }
+
+            /* Increment current rx descriptor index */
+            INCR_RX_DESC_INDEX(descidx, 1U);
+            /* Get current descriptor address */
+            dmarxdesc = (ETH_DMADescTypeDef *)heth->RxDescList.RxDesc[descidx];
+            desccnt++;
+        }
+
+        heth->RxDescList.RxBuildDescCnt += desccnt;
+        if ((heth->RxDescList.RxBuildDescCnt) != 0U)
+        {
+            /* Update Descriptors */
+            ETH_UpdateDescriptor(heth);
+        }
+
+        heth->RxDescList.RxDescIdx = descidx;
+
+        if (rxdataready == 1U)
+        {
+            /* Return received packet */
+            //*pAppBuff = heth->RxDescList.pRxStart;
+            /* Reset first element */
+            heth->RxDescList.pRxStart = NULL;
+
+            return true;
+        }
+
+        /* Packet not ready */
+        return false;
     }
 
     EthernetMacStm::SendDescriptors::SendDescriptors(EthernetMacStm& ethernetMac)

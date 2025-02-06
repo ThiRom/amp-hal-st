@@ -38,7 +38,8 @@ namespace hal
             void RequestReceiveBuffers();
 
         private:
-            void* RequestReceiveBuffer();
+            bool RequestReceiveBuffer();
+            void ETH_UpdateDescriptor(ETH_HandleTypeDef *heth);
 
         private:
             EthernetMacStm& ethernetMac;
