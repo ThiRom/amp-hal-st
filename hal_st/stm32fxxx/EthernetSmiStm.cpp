@@ -85,7 +85,7 @@ namespace hal
         sequencer.Execute([this]()
             {
                 uint16_t status = ReadPhyRegister(phyBasicStatusRegister);
-                bool newLinkUp = infra::IsBitSet(status, phyBsrLinkUp) && infra::IsBitSet(status, phyBsrAutoNegotiationComplete);
+                bool newLinkUp = infra::IsBitSet(status, phyBsrLinkUp) /* && infra::IsBitSet(status, phyBsrAutoNegotiationComplete) */;
 
                 if (newLinkUp != linkUp)
                 {
