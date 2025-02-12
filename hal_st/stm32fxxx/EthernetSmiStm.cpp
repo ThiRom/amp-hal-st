@@ -85,62 +85,30 @@ namespace hal
         sequencer.Execute([this]()
             {
                 uint16_t status = ReadPhyRegister(phyBasicStatusRegister);
+                bool newLinkUp = infra::IsBitSet(status, phyBsrLinkUp) && infra::IsBitSet(status, phyBsrAutoNegotiationComplete);
 
-                uint16_t control = ReadPhyRegister(phyBasicControlRegister);
-
-                if(infra::IsBitSet(control, phyBcrAutoNegotiationEnable))
+                if (newLinkUp != linkUp)
                 {
-                    bool newLinkUp = infra::IsBitSet(status, phyBsrLinkUp)  && infra::IsBitSet(status, phyBsrAutoNegotiationComplete);
+                    linkUp = newLinkUp;
 
-                    if (newLinkUp != linkUp)
+                    if (linkUp)
                     {
-                        linkUp = newLinkUp;
-
-                        if (linkUp)
-                        {
-                            uint16_t linkAbility = ReadPhyRegister(phyAutoNegotiationAdvertisement);
-                            uint16_t linkPartnerAbility = ReadPhyRegister(phyAutoNegotiationLinkPartnerAbility);
-                            LinkSpeed speed;
-                            if (infra::IsBitSet(linkPartnerAbility, phyAnlpaFullDuplex100MHz) && infra::IsBitSet(linkAbility, phyAnlpaFullDuplex100MHz))
-                                speed = LinkSpeed::fullDuplex100MHz;
-                            else if (infra::IsBitSet(linkPartnerAbility, phyAnlpaHalfDuplex100MHz) && infra::IsBitSet(linkAbility, phyAnlpaHalfDuplex100MHz))
-                                speed = LinkSpeed::halfDuplex100MHz;
-                            else if (infra::IsBitSet(linkPartnerAbility, phyAnlpaFullDuplex10MHz) && infra::IsBitSet(linkAbility, phyAnlpaFullDuplex10MHz))
-                                speed = LinkSpeed::fullDuplex10MHz;
-                            else
-                                speed = LinkSpeed::halfDuplex10MHz;
-
-                            GetObserver().LinkUp(speed);
-                        }
+                        uint16_t linkAbility = ReadPhyRegister(phyAutoNegotiationAdvertisement);
+                        uint16_t linkPartnerAbility = ReadPhyRegister(phyAutoNegotiationLinkPartnerAbility);
+                        LinkSpeed speed;
+                        if (infra::IsBitSet(linkPartnerAbility, phyAnlpaFullDuplex100MHz) && infra::IsBitSet(linkAbility, phyAnlpaFullDuplex100MHz))
+                            speed = LinkSpeed::fullDuplex100MHz;
+                        else if (infra::IsBitSet(linkPartnerAbility, phyAnlpaHalfDuplex100MHz) && infra::IsBitSet(linkAbility, phyAnlpaHalfDuplex100MHz))
+                            speed = LinkSpeed::halfDuplex100MHz;
+                        else if (infra::IsBitSet(linkPartnerAbility, phyAnlpaFullDuplex10MHz) && infra::IsBitSet(linkAbility, phyAnlpaFullDuplex10MHz))
+                            speed = LinkSpeed::fullDuplex10MHz;
                         else
-                            GetObserver().LinkDown();
+                            speed = LinkSpeed::halfDuplex10MHz;
+
+                        GetObserver().LinkUp(speed);
                     }
-                }
-                else
-                {
-                    bool newLinkUp = infra::IsBitSet(status, phyBsrLinkUp);
-
-                    if (newLinkUp != linkUp)
-                    {
-                        linkUp = newLinkUp;
-
-                        if (linkUp)
-                        {
-                            LinkSpeed speed;
-                            if (infra::IsBitSet(control, phyBcrDuplexMode) && infra::IsBitSet(control, phyBcrSpeedSelect))
-                                speed = LinkSpeed::fullDuplex100MHz;
-                            else if (infra::IsBitSet(control, phyBcrSpeedSelect))
-                                speed = LinkSpeed::halfDuplex100MHz;
-                            else if (infra::IsBitSet(control, phyBcrDuplexMode))
-                                speed = LinkSpeed::fullDuplex10MHz;
-                            else
-                                speed = LinkSpeed::halfDuplex10MHz;
-
-                            GetObserver().LinkUp(speed);
-                        }
-                        else
-                            GetObserver().LinkDown();
-                    }
+                    else
+                        GetObserver().LinkDown();
                 }
             });
     }
