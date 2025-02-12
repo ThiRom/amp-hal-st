@@ -84,12 +84,12 @@ namespace hal
     {
         sequencer.Execute([this]()
             {
-                uint16_t status = ReadPhyRegister(phyBasicControlRegister);
+                uint16_t status = ReadPhyRegister(phyBasicStatusRegister);
 
-                if(infra::IsBitSet(status, phyBcrAutoNegotiationEnable))
+                uint16_t control = ReadPhyRegister(phyBasicControlRegister);
+
+                if(infra::IsBitSet(control, phyBcrAutoNegotiationEnable))
                 {
-                    status = ReadPhyRegister(phyBasicStatusRegister);
-
                     bool newLinkUp = infra::IsBitSet(status, phyBsrLinkUp)  && infra::IsBitSet(status, phyBsrAutoNegotiationComplete);
 
                     if (newLinkUp != linkUp)
@@ -118,9 +118,7 @@ namespace hal
                 }
                 else
                 {
-                    status = ReadPhyRegister(phyBasicStatusRegister);
                     bool newLinkUp = infra::IsBitSet(status, phyBsrLinkUp);
-                    status = ReadPhyRegister(phyBasicControlRegister);
 
                     if (newLinkUp != linkUp)
                     {
@@ -129,11 +127,11 @@ namespace hal
                         if (linkUp)
                         {
                             LinkSpeed speed;
-                            if (infra::IsBitSet(status, phyBcrDuplexMode) && infra::IsBitSet(status, phyBcrSpeedSelect))
+                            if (infra::IsBitSet(control, phyBcrDuplexMode) && infra::IsBitSet(control, phyBcrSpeedSelect))
                                 speed = LinkSpeed::fullDuplex100MHz;
-                            else if (infra::IsBitSet(status, phyBcrSpeedSelect))
+                            else if (infra::IsBitSet(control, phyBcrSpeedSelect))
                                 speed = LinkSpeed::halfDuplex100MHz;
-                            else if (infra::IsBitSet(status, phyBcrDuplexMode))
+                            else if (infra::IsBitSet(control, phyBcrDuplexMode))
                                 speed = LinkSpeed::fullDuplex10MHz;
                             else
                                 speed = LinkSpeed::halfDuplex10MHz;
@@ -219,7 +217,7 @@ namespace hal
         SET_BIT(tmpreg, ETH_MACMDIOAR_MB);
 
         /* Give the value to the MII data register */
-        WRITE_REG(ETH->MACMDIODR, (uint16_t)reg);
+        WRITE_REG(ETH->MACMDIODR, (uint16_t)value);
 
         /* Write the result value into the MII Address register */
         WRITE_REG(ETH->MACMDIOAR, tmpreg);
