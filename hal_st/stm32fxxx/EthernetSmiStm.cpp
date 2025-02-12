@@ -61,54 +61,88 @@ namespace hal
     void EthernetSmiStm::ResetPhy()
     {
         sequencer.Execute([this]()
-            {
-                WritePhyRegister(phyBasicControlRegister, infra::Bit<uint16_t>(phyBcrReset));
-            });
+        {
+            WritePhyRegister(phyBasicControlRegister, infra::Bit<uint16_t>(phyBcrReset));
+        });
         sequencer.DoWhile();
         Delay(std::chrono::milliseconds(1));
         sequencer.Execute([this]()
-            {
-                phyRegisterValue = ReadPhyRegister(phyBasicControlRegister);
-            });
+        {
+            phyRegisterValue = ReadPhyRegister(phyBasicControlRegister);
+        });
         sequencer.EndDoWhile([this]()
-            {
-                return infra::IsBitSet(phyRegisterValue, phyBcrReset);
-            });
+        {
+            return infra::IsBitSet(phyRegisterValue, phyBcrReset);
+        });
         sequencer.Execute([this]()
-            {
-                WritePhyRegister(phyBasicControlRegister, infra::Bit<uint16_t>(phyBcrAutoNegotiationEnable));
-            });
+        {
+            WritePhyRegister(phyBasicControlRegister, infra::Bit<uint16_t>(phyBcrAutoNegotiationEnable));
+        });
     }
 
     void EthernetSmiStm::DetectLink()
     {
         sequencer.Execute([this]()
             {
-                uint16_t status = ReadPhyRegister(phyBasicStatusRegister);
-                bool newLinkUp = infra::IsBitSet(status, phyBsrLinkUp) /* && infra::IsBitSet(status, phyBsrAutoNegotiationComplete) */;
+                uint16_t status = ReadPhyRegister(phyBasicControlRegister);
 
-                if (newLinkUp != linkUp)
+                if(infra::IsBitSet(status, phyBcrAutoNegotiationEnable))
                 {
-                    linkUp = newLinkUp;
+                    status = ReadPhyRegister(phyBasicStatusRegister);
 
-                    if (linkUp)
+                    bool newLinkUp = infra::IsBitSet(status, phyBsrLinkUp)  && infra::IsBitSet(status, phyBsrAutoNegotiationComplete);
+
+                    if (newLinkUp != linkUp)
                     {
-                        uint16_t linkAbility = ReadPhyRegister(phyAutoNegotiationAdvertisement);
-                        uint16_t linkPartnerAbility = ReadPhyRegister(phyAutoNegotiationLinkPartnerAbility);
-                        LinkSpeed speed;
-                        if (infra::IsBitSet(linkPartnerAbility, phyAnlpaFullDuplex100MHz) && infra::IsBitSet(linkAbility, phyAnlpaFullDuplex100MHz))
-                            speed = LinkSpeed::fullDuplex100MHz;
-                        else if (infra::IsBitSet(linkPartnerAbility, phyAnlpaHalfDuplex100MHz) && infra::IsBitSet(linkAbility, phyAnlpaHalfDuplex100MHz))
-                            speed = LinkSpeed::halfDuplex100MHz;
-                        else if (infra::IsBitSet(linkPartnerAbility, phyAnlpaFullDuplex10MHz) && infra::IsBitSet(linkAbility, phyAnlpaFullDuplex10MHz))
-                            speed = LinkSpeed::fullDuplex10MHz;
-                        else
-                            speed = LinkSpeed::halfDuplex10MHz;
+                        linkUp = newLinkUp;
 
-                        GetObserver().LinkUp(speed);
+                        if (linkUp)
+                        {
+                            uint16_t linkAbility = ReadPhyRegister(phyAutoNegotiationAdvertisement);
+                            uint16_t linkPartnerAbility = ReadPhyRegister(phyAutoNegotiationLinkPartnerAbility);
+                            LinkSpeed speed;
+                            if (infra::IsBitSet(linkPartnerAbility, phyAnlpaFullDuplex100MHz) && infra::IsBitSet(linkAbility, phyAnlpaFullDuplex100MHz))
+                                speed = LinkSpeed::fullDuplex100MHz;
+                            else if (infra::IsBitSet(linkPartnerAbility, phyAnlpaHalfDuplex100MHz) && infra::IsBitSet(linkAbility, phyAnlpaHalfDuplex100MHz))
+                                speed = LinkSpeed::halfDuplex100MHz;
+                            else if (infra::IsBitSet(linkPartnerAbility, phyAnlpaFullDuplex10MHz) && infra::IsBitSet(linkAbility, phyAnlpaFullDuplex10MHz))
+                                speed = LinkSpeed::fullDuplex10MHz;
+                            else
+                                speed = LinkSpeed::halfDuplex10MHz;
+
+                            GetObserver().LinkUp(speed);
+                        }
+                        else
+                            GetObserver().LinkDown();
                     }
-                    else
-                        GetObserver().LinkDown();
+                }
+                else
+                {
+                    status = ReadPhyRegister(phyBasicStatusRegister);
+                    bool newLinkUp = infra::IsBitSet(status, phyBsrLinkUp);
+                    status = ReadPhyRegister(phyBasicControlRegister);
+
+                    if (newLinkUp != linkUp)
+                    {
+                        linkUp = newLinkUp;
+
+                        if (linkUp)
+                        {
+                            LinkSpeed speed;
+                            if (infra::IsBitSet(status, phyBcrDuplexMode) && infra::IsBitSet(status, phyBcrSpeedSelect))
+                                speed = LinkSpeed::fullDuplex100MHz;
+                            else if (infra::IsBitSet(status, phyBcrSpeedSelect))
+                                speed = LinkSpeed::halfDuplex100MHz;
+                            else if (infra::IsBitSet(status, phyBcrDuplexMode))
+                                speed = LinkSpeed::fullDuplex10MHz;
+                            else
+                                speed = LinkSpeed::halfDuplex10MHz;
+
+                            GetObserver().LinkUp(speed);
+                        }
+                        else
+                            GetObserver().LinkDown();
+                    }
                 }
             });
     }
