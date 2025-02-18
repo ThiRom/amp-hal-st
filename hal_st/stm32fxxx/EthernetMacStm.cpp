@@ -2,6 +2,7 @@
 #include "generated/stm32fxxx/PeripheralTable.hpp"
 #include "infra/event/EventDispatcher.hpp"
 #include "infra/util/BitLogic.hpp"
+#include "services/tracer/GlobalTracer.hpp"
 #include "stm32h573xx.h"
 #include <cstddef>
 #include <cstdint>
@@ -35,8 +36,6 @@ namespace hal
         , sendDescriptors(*this)
     {
         EnableClockEthernet(0);
-        peripheralEthernet[0]->MACA0LR = reinterpret_cast<const uint32_t*>(macAddress.data())[0];
-        peripheralEthernet[0]->MACA0HR = reinterpret_cast<const uint32_t*>(macAddress.data())[1] & 0xffff;
 
         static uint8_t MACAddr[6];
         heth = &eth;
@@ -55,6 +54,9 @@ namespace hal
         eth.Init.RxBuffLen = 1524;
 
         HAL_ETH_Init(&eth);
+
+        peripheralEthernet[0]->MACA0LR = reinterpret_cast<const uint32_t*>(macAddress.data())[0];
+        peripheralEthernet[0]->MACA0HR = reinterpret_cast<const uint32_t*>(macAddress.data())[1] & 0xffff;
 
         memset(&TxConfig, 0, sizeof(ETH_TxPacketConfigTypeDef));
 	    TxConfig.Attributes = ETH_TX_PACKETS_FEATURES_CSUM | ETH_TX_PACKETS_FEATURES_CRCPAD;
@@ -187,7 +189,7 @@ namespace hal
             /* Clear the Eth DMA Rx IT pending bits */
             __HAL_ETH_DMA_CLEAR_IT(heth, ETH_DMACSR_RI | ETH_DMACSR_NIS);
 
-            sendDescriptors.SentFrame();
+            receiveDescriptors.ReceivedFrame();
         }
 
         /* Packet transmitted */
@@ -196,7 +198,7 @@ namespace hal
             /* Clear the Eth DMA Tx IT pending bits */
             __HAL_ETH_DMA_CLEAR_IT(heth, ETH_DMACSR_TI | ETH_DMACSR_NIS);
 
-            receiveDescriptors.ReceivedFrame();
+            sendDescriptors.SentFrame();
         }
     }
 
@@ -255,6 +257,9 @@ namespace hal
             {
                 ++receivedFrameBuffers;
                 uint16_t frameSize = heth->RxDescList.RxDataLength; //RT: Check!!
+
+                services::GlobalTracer().Trace() << "Received: " << frameSize;
+
                 ethernetMac.GetObserver().ReceivedFrame(receivedFrameBuffers, frameSize);
                 receivedFrameBuffers = 0;
             }
