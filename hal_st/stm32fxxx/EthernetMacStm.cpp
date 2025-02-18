@@ -20,7 +20,7 @@ ETH_DMADescTypeDef  DMATxDscrTab[ETH_TX_DESC_CNT]; /* Ethernet Tx DMA Descriptor
 ETH_HandleTypeDef   eth{};
 ETH_HandleTypeDef   *heth{};
 ETH_TxPacketConfigTypeDef TxConfig;
-ETH_BufferTypeDef buf;
+ETH_BufferTypeDef Txbuffer[ETH_TX_DESC_CNT] = { 0 };
 
 namespace hal
 {
@@ -455,17 +455,17 @@ namespace hal
 
     void EthernetMacStm::SendDescriptors::SendBuffer(infra::ConstByteRange data, bool last)
     {
-        memset(&buf, 0, sizeof(buf));
-        memset(&TxConfig, 0, sizeof(TxConfig));
+        memset(Txbuffer, 0, ETH_TX_DESC_CNT * sizeof(ETH_BufferTypeDef));
 
-        buf.buffer = (uint8_t*)data.begin();
-        buf.len = data.size();
-        buf.next = NULL;
+        Txbuffer[0].buffer = (uint8_t*)data.begin();
+		Txbuffer[0].len = data.size() + 1;
+        Txbuffer[0].next = NULL;
 
-        TxConfig.Length = data.size();
-        TxConfig.TxBuffer = &buf;
+        TxConfig.Length = data.size() + 1;
+        TxConfig.TxBuffer = Txbuffer;
+        TxConfig.pData = (uint8_t*)data.begin(); //?
 
-        HAL_ETH_Transmit_IT(heth, &TxConfig); //20 msec timeout
+        HAL_ETH_Transmit_IT(heth, &TxConfig);
 
         // assert((descriptors[sendDescriptorIndex].DESC0 & ETH_DMATXDESC_OWN) == 0);
         // descriptors[sendDescriptorIndex].DESC1 = data.size();
