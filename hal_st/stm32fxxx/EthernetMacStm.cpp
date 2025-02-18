@@ -1,4 +1,5 @@
 #include "hal_st/stm32fxxx/EthernetMacStm.hpp"
+#include "generated/stm32fxxx/PeripheralTable.hpp"
 #include "infra/event/EventDispatcher.hpp"
 #include "infra/util/BitLogic.hpp"
 #include "stm32h573xx.h"
@@ -19,6 +20,7 @@ ETH_DMADescTypeDef  DMATxDscrTab[ETH_TX_DESC_CNT]; /* Ethernet Tx DMA Descriptor
 ETH_HandleTypeDef   eth{};
 ETH_HandleTypeDef   *heth{};
 ETH_TxPacketConfigTypeDef TxConfig;
+ETH_BufferTypeDef buf;
 
 namespace hal
 {
@@ -32,6 +34,7 @@ namespace hal
         , receiveDescriptors(*this)
         , sendDescriptors(*this)
     {
+        EnableClockEthernet(0);
         peripheralEthernet[0]->MACA0LR = reinterpret_cast<const uint32_t*>(macAddress.data())[0];
         peripheralEthernet[0]->MACA0HR = reinterpret_cast<const uint32_t*>(macAddress.data())[1] & 0xffff;
 
@@ -57,6 +60,8 @@ namespace hal
 	    TxConfig.Attributes = ETH_TX_PACKETS_FEATURES_CSUM | ETH_TX_PACKETS_FEATURES_CRCPAD;
 	    TxConfig.ChecksumCtrl = ETH_CHECKSUM_IPHDR_PAYLOAD_INSERT_PHDR_CALC;
 	    TxConfig.CRCPadCtrl = ETH_CRC_PAD_INSERT;
+
+        HAL_ETH_Start_IT(&eth);
     }
 
     EthernetMacStm::~EthernetMacStm()
@@ -450,16 +455,17 @@ namespace hal
 
     void EthernetMacStm::SendDescriptors::SendBuffer(infra::ConstByteRange data, bool last)
     {
-        ETH_BufferTypeDef buf;
+        memset(&buf, 0, sizeof(buf));
+        memset(&TxConfig, 0, sizeof(TxConfig));
 
-        buf.buffer = (uint8_t*)&data;
+        buf.buffer = (uint8_t*)data.begin();
         buf.len = data.size();
         buf.next = NULL;
 
         TxConfig.Length = data.size();
         TxConfig.TxBuffer = &buf;
 
-        HAL_ETH_Transmit(heth, &TxConfig, 20); //20 msec timeout
+        HAL_ETH_Transmit_IT(heth, &TxConfig); //20 msec timeout
 
         // assert((descriptors[sendDescriptorIndex].DESC0 & ETH_DMATXDESC_OWN) == 0);
         // descriptors[sendDescriptorIndex].DESC1 = data.size();
