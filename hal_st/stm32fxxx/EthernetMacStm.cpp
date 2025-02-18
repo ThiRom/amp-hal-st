@@ -36,17 +36,18 @@ namespace hal
         , sendDescriptors(*this)
     {
         EnableClockEthernet(0);
-
+        // peripheralEthernet[0]->MACA0LR = reinterpret_cast<const uint32_t*>(macAddress.data())[0];
+        // peripheralEthernet[0]->MACA0HR = reinterpret_cast<const uint32_t*>(macAddress.data())[1] & 0xffff;
         static uint8_t MACAddr[6];
         heth = &eth;
 
         eth.Instance = peripheralEthernet[0];
-        MACAddr[0] = 0x00;
-        MACAddr[1] = 0x80;
-        MACAddr[2] = 0xE1;
-        MACAddr[3] = 0x00;
-        MACAddr[4] = 0x00;
-        MACAddr[5] = 0x01;
+        MACAddr[0] = 0;
+        MACAddr[1] = macAddress[1];
+        MACAddr[2] = macAddress[2];
+        MACAddr[3] = macAddress[3];
+        MACAddr[4] = macAddress[4];
+        MACAddr[5] = macAddress[5];
         eth.Init.MACAddr = &MACAddr[0];
         eth.Init.MediaInterface = HAL_ETH_RMII_MODE;
         eth.Init.TxDesc = DMATxDscrTab;
@@ -55,8 +56,7 @@ namespace hal
 
         HAL_ETH_Init(&eth);
 
-        peripheralEthernet[0]->MACA0LR = reinterpret_cast<const uint32_t*>(macAddress.data())[0];
-        peripheralEthernet[0]->MACA0HR = reinterpret_cast<const uint32_t*>(macAddress.data())[1] & 0xffff;
+
 
         memset(&TxConfig, 0, sizeof(ETH_TxPacketConfigTypeDef));
 	    TxConfig.Attributes = ETH_TX_PACKETS_FEATURES_CSUM | ETH_TX_PACKETS_FEATURES_CRCPAD;
@@ -256,7 +256,7 @@ namespace hal
             if(receiveDone)
             {
                 ++receivedFrameBuffers;
-                uint16_t frameSize = heth->RxDescList.RxDataLength; //RT: Check!!
+                uint16_t frameSize = heth->RxDescList.RxDataLength + 1; //RT: Check!!
 
                 services::GlobalTracer().Trace() << "Received: " << frameSize;
 
