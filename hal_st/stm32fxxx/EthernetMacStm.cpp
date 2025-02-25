@@ -10,18 +10,23 @@
 #if defined(HAS_PERIPHERAL_ETHERNET)
 
 /* Helper macros for RX descriptor handling */
-#define INCR_RX_DESC_INDEX(inx, offset) do {\
-                                             (inx) += (offset);\
-                                             if ((inx) >= (uint32_t)ETH_RX_DESC_CNT){\
-                                             (inx) = ((inx) - (uint32_t)ETH_RX_DESC_CNT);}\
-                                           } while (0)
+#define INCR_RX_DESC_INDEX(inx, offset)                  \
+    do                                                   \
+    {                                                    \
+        (inx) += (offset);                               \
+        if ((inx) >= (uint32_t)ETH_RX_DESC_CNT)          \
+        {                                                \
+            (inx) = ((inx) - (uint32_t)ETH_RX_DESC_CNT); \
+        }                                                \
+    } while (0)
 
-ETH_DMADescTypeDef  DMARxDscrTab[ETH_RX_DESC_CNT]; /* Ethernet Rx DMA Descriptors */
-ETH_DMADescTypeDef  DMATxDscrTab[ETH_TX_DESC_CNT]; /* Ethernet Tx DMA Descriptors */
-ETH_HandleTypeDef   eth{};
-ETH_HandleTypeDef   *heth{};
+ETH_DMADescTypeDef DMARxDscrTab[ETH_RX_DESC_CNT]; /* Ethernet Rx DMA Descriptors */
+ETH_DMADescTypeDef DMATxDscrTab[ETH_TX_DESC_CNT]; /* Ethernet Tx DMA Descriptors */
+ETH_HandleTypeDef eth{};
+ETH_HandleTypeDef* heth{};
 ETH_TxPacketConfigTypeDef TxConfig;
 ETH_BufferTypeDef Txbuffer[ETH_TX_DESC_CNT] = { 0 };
+hal::EthernetMacStm* mac;
 
 namespace hal
 {
@@ -36,18 +41,20 @@ namespace hal
         , sendDescriptors(*this)
     {
         EnableClockEthernet(0);
+
+        mac = this;
         // peripheralEthernet[0]->MACA0LR = reinterpret_cast<const uint32_t*>(macAddress.data())[0];
         // peripheralEthernet[0]->MACA0HR = reinterpret_cast<const uint32_t*>(macAddress.data())[1] & 0xffff;
         static uint8_t MACAddr[6];
         heth = &eth;
 
         eth.Instance = peripheralEthernet[0];
-        MACAddr[0] = 0;
-        MACAddr[1] = macAddress[1];
-        MACAddr[2] = macAddress[2];
-        MACAddr[3] = macAddress[3];
-        MACAddr[4] = macAddress[4];
-        MACAddr[5] = macAddress[5];
+        MACAddr[0] = 0x00;
+        MACAddr[1] = 0x80;
+        MACAddr[2] = 0xE1;
+        MACAddr[3] = 0x00;
+        MACAddr[4] = 0x00;
+        MACAddr[5] = 0x01;
         eth.Init.MACAddr = &MACAddr[0];
         eth.Init.MediaInterface = HAL_ETH_RMII_MODE;
         eth.Init.TxDesc = DMATxDscrTab;
@@ -56,14 +63,16 @@ namespace hal
 
         HAL_ETH_Init(&eth);
 
-
-
         memset(&TxConfig, 0, sizeof(ETH_TxPacketConfigTypeDef));
-	    TxConfig.Attributes = ETH_TX_PACKETS_FEATURES_CSUM | ETH_TX_PACKETS_FEATURES_CRCPAD;
-	    TxConfig.ChecksumCtrl = ETH_CHECKSUM_IPHDR_PAYLOAD_INSERT_PHDR_CALC;
-	    TxConfig.CRCPadCtrl = ETH_CRC_PAD_INSERT;
+        TxConfig.Attributes = ETH_TX_PACKETS_FEATURES_CSUM | ETH_TX_PACKETS_FEATURES_CRCPAD;
+        TxConfig.ChecksumCtrl = ETH_CHECKSUM_IPHDR_PAYLOAD_INSERT_PHDR_CALC;
+        TxConfig.CRCPadCtrl = ETH_CRC_PAD_INSERT;
 
-        HAL_ETH_Start_IT(&eth);
+        infra::EventDispatcher::Instance().Schedule([this]()
+            {
+                // This is scheduled so that the observer is instantiated
+                HAL_ETH_Start_IT(&eth);
+            });
     }
 
     EthernetMacStm::~EthernetMacStm()
@@ -140,7 +149,8 @@ namespace hal
     {
         peripheralEthernet[0]->DMAMR |= ETH_DMAMR_SWR;
         while ((peripheralEthernet[0]->DMAMR & ETH_DMAMR_SWR) != 0)
-        {}
+        {
+        }
     }
 
     void EthernetMacStm::Interrupt()
@@ -217,11 +227,11 @@ namespace hal
 
         // peripheralEthernet[0]->DMARDLAR = reinterpret_cast<uint32_t>(descriptors.data());
 
-        infra::EventDispatcher::Instance().Schedule([this]()
-            {
-                // This is scheduled so that the observer is instantiated
-                RequestReceiveBuffers();
-            });
+        // infra::EventDispatcher::Instance().Schedule([this]()
+        //     {
+        //         // This is scheduled so that the observer is instantiated
+        //         RequestReceiveBuffers();
+        //     });
     }
 
     void EthernetMacStm::ReceiveDescriptors::ReceivedFrame()
@@ -252,19 +262,21 @@ namespace hal
         bool receiveDone;
         do
         {
-            receiveDone = RequestReceiveBuffer();
-            if(receiveDone)
+            struct pbuf* p;
+            HAL_ETH_ReadData(heth, (void**) &p);
+
+            if (p != nullptr)
             {
                 ++receivedFrameBuffers;
-                uint16_t frameSize = heth->RxDescList.RxDataLength + 1; //RT: Check!!
+                uint16_t frameSize = heth->RxDescList.RxDataLength; // RT: Check!!
 
                 services::GlobalTracer().Trace() << "Received: " << frameSize;
 
-                ethernetMac.GetObserver().ReceivedFrame(receivedFrameBuffers, frameSize);
+                ethernetMac.GetObserver().ReceivedFrame((uint32_t)p, 0);
                 receivedFrameBuffers = 0;
+                break;
             }
-        }
-        while(receiveDone);
+        } while (receiveDone);
     }
 
     void EthernetMacStm::ReceiveDescriptors::RequestReceiveBuffers()
@@ -277,24 +289,24 @@ namespace hal
     }
 
     /**
-    * @brief  This function gives back Rx Desc of the last received Packet
-    *         to the DMA, so ETH DMA will be able to use these descriptors
-    *         to receive next Packets.
-    * @param  heth: pointer to a ETH_HandleTypeDef structure that contains
-    *         the configuration information for ETHERNET module
-    * @retval HAL status
-    */
-    void EthernetMacStm::ReceiveDescriptors::ETH_UpdateDescriptor(ETH_HandleTypeDef *heth)
+     * @brief  This function gives back Rx Desc of the last received Packet
+     *         to the DMA, so ETH DMA will be able to use these descriptors
+     *         to receive next Packets.
+     * @param  heth: pointer to a ETH_HandleTypeDef structure that contains
+     *         the configuration information for ETHERNET module
+     * @retval HAL status
+     */
+    void EthernetMacStm::ReceiveDescriptors::ETH_UpdateDescriptor(ETH_HandleTypeDef* heth)
     {
         uint32_t descidx;
         uint32_t tailidx;
         uint32_t desccount;
-        ETH_DMADescTypeDef *dmarxdesc;
+        ETH_DMADescTypeDef* dmarxdesc;
         infra::ByteRange buff;
         uint8_t allocStatus = 1U;
 
         descidx = heth->RxDescList.RxBuildDescIdx;
-        dmarxdesc = (ETH_DMADescTypeDef *)heth->RxDescList.RxDesc[descidx];
+        dmarxdesc = (ETH_DMADescTypeDef*)heth->RxDescList.RxDesc[descidx];
         desccount = heth->RxDescList.RxBuildDescCnt;
 
         while ((desccount > 0U) && (allocStatus != 0U))
@@ -331,7 +343,7 @@ namespace hal
                 /* Increment current rx descriptor index */
                 INCR_RX_DESC_INDEX(descidx, 1U);
                 /* Get current descriptor address */
-                dmarxdesc = (ETH_DMADescTypeDef *)heth->RxDescList.RxDesc[descidx];
+                dmarxdesc = (ETH_DMADescTypeDef*)heth->RxDescList.RxDesc[descidx];
                 desccount--;
             }
         }
@@ -357,7 +369,7 @@ namespace hal
         // RT: copied from readdata of HAL_ETH
 
         uint32_t descidx;
-        ETH_DMADescTypeDef *dmarxdesc;
+        ETH_DMADescTypeDef* dmarxdesc;
         uint32_t desccnt = 0U;
         uint32_t desccntmax;
         uint32_t bufflength;
@@ -369,19 +381,18 @@ namespace hal
         }
 
         descidx = heth->RxDescList.RxDescIdx;
-        dmarxdesc = (ETH_DMADescTypeDef *)heth->RxDescList.RxDesc[descidx];
+        dmarxdesc = (ETH_DMADescTypeDef*)heth->RxDescList.RxDesc[descidx];
         desccntmax = ETH_RX_DESC_CNT - heth->RxDescList.RxBuildDescCnt;
 
         /* Check if descriptor is not owned by DMA */
-        while ((READ_BIT(dmarxdesc->DESC3, ETH_DMARXNDESCWBF_OWN) == (uint32_t)RESET) && (desccnt < desccntmax)
-                && (rxdataready == 0U))
+        while ((READ_BIT(dmarxdesc->DESC3, ETH_DMARXNDESCWBF_OWN) == (uint32_t)RESET) && (desccnt < desccntmax) && (rxdataready == 0U))
         {
-            if (READ_BIT(dmarxdesc->DESC3,  ETH_DMARXNDESCWBF_CTXT)  != (uint32_t)RESET)
+            if (READ_BIT(dmarxdesc->DESC3, ETH_DMARXNDESCWBF_CTXT) != (uint32_t)RESET)
             {
                 /* Get timestamp high */
                 heth->RxDescList.TimeStamp.TimeStampHigh = dmarxdesc->DESC1;
                 /* Get timestamp low */
-                heth->RxDescList.TimeStamp.TimeStampLow  = dmarxdesc->DESC0;
+                heth->RxDescList.TimeStamp.TimeStampLow = dmarxdesc->DESC0;
             }
             if ((READ_BIT(dmarxdesc->DESC3, ETH_DMARXNDESCWBF_FD) != (uint32_t)RESET) || (heth->RxDescList.pRxStart != NULL))
             {
@@ -417,7 +428,7 @@ namespace hal
             /* Increment current rx descriptor index */
             INCR_RX_DESC_INDEX(descidx, 1U);
             /* Get current descriptor address */
-            dmarxdesc = (ETH_DMADescTypeDef *)heth->RxDescList.RxDesc[descidx];
+            dmarxdesc = (ETH_DMADescTypeDef*)heth->RxDescList.RxDesc[descidx];
             desccnt++;
         }
 
@@ -433,7 +444,7 @@ namespace hal
         if (rxdataready == 1U)
         {
             /* Return received packet */
-            //*pAppBuff = heth->RxDescList.pRxStart;
+            // pAppBuff = heth->RxDescList.pRxStart;
             /* Reset first element */
             heth->RxDescList.pRxStart = NULL;
 
@@ -463,7 +474,7 @@ namespace hal
         memset(Txbuffer, 0, ETH_TX_DESC_CNT * sizeof(ETH_BufferTypeDef));
 
         Txbuffer[0].buffer = (uint8_t*)data.begin();
-		Txbuffer[0].len = data.size() + 1;
+        Txbuffer[0].len = data.size() + 1;
         Txbuffer[0].next = NULL;
 
         TxConfig.Length = data.size() + 1;
@@ -513,9 +524,19 @@ namespace hal
         // if (sentDone)
         // {
         //     descriptors[previousDescriptor].DESC0 &= ~ETH_DMATXDESC_LS;
-             ethernetMac.GetObserver().SentFrame();
+        ethernetMac.GetObserver().SentFrame();
         // }
     }
+}
+
+extern "C"
+{
+    void HAL_ETH_RxAllocateCallback(uint8_t** buff)
+    {
+        infra::ByteRange buffer = mac->GetObserver().RequestReceiveBuffer();
+        *buff = buffer.begin();
+    }
+
 }
 
 #endif
