@@ -2,7 +2,11 @@
 #include "infra/event/EventDispatcher.hpp"
 #include "infra/util/BitLogic.hpp"
 
+#include "stm32h573xx.h"
+
 #if defined(HAS_PERIPHERAL_ETHERNET)
+
+
 
 namespace hal
 {
@@ -16,15 +20,87 @@ namespace hal
         , receiveDescriptors(*this)
         , sendDescriptors(*this)
     {
+        uint32_t tickstart;
+        uint32_t hclk;
+        uint32_t tmpreg;
+
         peripheralEthernet[0]->MACA0LR = reinterpret_cast<const uint32_t*>(macAddress.data())[0];
         peripheralEthernet[0]->MACA0HR = reinterpret_cast<const uint32_t*>(macAddress.data())[1] & 0xffff;
 
-        peripheralEthernet[0]->DMAIER = ETH_DMAIER_TIE | ETH_DMAIER_RIE | ETH_DMAIER_RPSIE | ETH_DMAIER_FBEIE | ETH_DMAIER_AISE | ETH_DMAIER_NISE;
-        peripheralEthernet[0]->DMABMR = ETH_DMABMR_EDE | ETH_DMABMR_PBL_1Beat;
+        // peripheralEthernet[0]->DMAIER = ETH_DMAIER_TIE | ETH_DMAIER_RIE | ETH_DMAIER_RPSIE | ETH_DMAIER_FBEIE | ETH_DMAIER_AISE | ETH_DMAIER_NISE;
+        // peripheralEthernet[0]->DMABMR = ETH_DMABMR_EDE | ETH_DMABMR_PBL_1Beat;
 
-        peripheralEthernet[0]->MACCR = ((linkSpeed == LinkSpeed::fullDuplex100MHz || linkSpeed == LinkSpeed::halfDuplex100MHz) ? ETH_MACCR_FES : 0) | ((linkSpeed == LinkSpeed::fullDuplex100MHz || linkSpeed == LinkSpeed::fullDuplex10MHz) ? ETH_MACCR_DM : 0) | ETH_MACCR_IPCO | ETH_MACCR_TE | ETH_MACCR_RE;
+        // peripheralEthernet[0]->MACCR = ((linkSpeed == LinkSpeed::fullDuplex100MHz || linkSpeed == LinkSpeed::halfDuplex100MHz) ? ETH_MACCR_FES : 0) | ((linkSpeed == LinkSpeed::fullDuplex100MHz || linkSpeed == LinkSpeed::fullDuplex10MHz) ? ETH_MACCR_DM : 0) | ETH_MACCR_IPCO | ETH_MACCR_TE | ETH_MACCR_RE;
 
-        peripheralEthernet[0]->DMAOMR = ETH_DMAOMR_SR | ETH_DMAOMR_ST | ETH_DMAOMR_TSF | ETH_DMAOMR_DFRF | ETH_DMAOMR_RSF | ETH_DMAOMR_FEF;
+        // peripheralEthernet[0]->DMAOMR = ETH_DMAOMR_SR | ETH_DMAOMR_ST | ETH_DMAOMR_TSF | ETH_DMAOMR_DFRF | ETH_DMAOMR_RSF | ETH_DMAOMR_FEF;'
+
+        EnableClockEthernet(0);
+
+        /* Select RMII Mode*/
+        MODIFY_REG(SBS->PMCR, SBS_PMCR_ETH_SEL_PHY, (uint32_t)(SBS_ETH_RMII));
+
+          /* Dummy read to sync with ETH */
+        (void)SBS->PMCR;
+
+        /* Ethernet Software reset */
+        /* Set the SWR bit: resets all MAC subsystem internal registers and logic */
+        /* After reset all the registers holds their respective reset values */
+        SET_BIT(peripheralEthernet[0]->DMAMR, ETH_DMAMR_SWR);
+
+        /* Get tick */
+        tickstart = HAL_GetTick();
+
+        /* Wait for software reset */
+        while (READ_BIT(peripheralEthernet[0]->DMAMR, ETH_DMAMR_SWR) > 0U)
+        {
+            if ((HAL_GetTick() - tickstart) > ETH_SWRESET_TIMEOUT)
+            {
+                return;
+            }
+        }
+
+        /* Get the ETHERNET MACMDIOAR value */
+        tmpreg = peripheralEthernet[0]->MACMDIOAR;
+        /* Clear CSR Clock Range bits */
+        tmpreg &= ~ETH_MACMDIOAR_CR;
+        /* Get hclk frequency value */
+        hclk = HAL_RCC_GetHCLKFreq();
+        /* Set CR bits depending on hclk value */
+        if (hclk < 35000000U)
+        {
+            /* CSR Clock Range between 0-35 MHz */
+            tmpreg |= ETH_MACMDIOAR_CR_DIV16;
+        }
+        else if (hclk < 60000000U)
+        {
+            /* CSR Clock Range between 35-60 MHz */
+            tmpreg |= ETH_MACMDIOAR_CR_DIV26;
+        }
+        else if (hclk < 100000000U)
+        {
+            /* CSR Clock Range between 60-100 MHz */
+            tmpreg |= ETH_MACMDIOAR_CR_DIV42;
+        }
+        else if (hclk < 150000000U)
+        {
+            /* CSR Clock Range between 100-150 MHz */
+            tmpreg |= ETH_MACMDIOAR_CR_DIV62;
+        }
+        else if (hclk < 250000000U)
+        {
+            /* CSR Clock Range between 150-250 MHz */
+            tmpreg |= ETH_MACMDIOAR_CR_DIV102;
+        }
+        else /* (hclk >= 250000000U) */
+        {
+            /* CSR Clock >= 250 MHz */
+            tmpreg |= ETH_MACMDIOAR_CR_DIV124;
+        }
+        /* Configure the CSR Clock Range */
+        peripheralEthernet[0]->MACMDIOAR = tmpreg;
+
+
+
     }
 
     EthernetMacStm::~EthernetMacStm()
