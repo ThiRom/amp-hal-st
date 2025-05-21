@@ -3,6 +3,7 @@
 #include "infra/util/BitLogic.hpp"
 
 #include "stm32h573xx.h"
+#include "stm32h5xx_hal_eth.h"
 
 #if defined(HAS_PERIPHERAL_ETHERNET)
 
@@ -236,13 +237,14 @@ namespace hal
     {
         for (auto& descriptor : descriptors)
         {
-            descriptor.DESC0 = ETH_DMATXDESC_TCH | ETH_DMATXDESC_CIC_TCPUDPICMP_FULL | ETH_DMATXDESC_IC;
-            descriptor.DESC3 = reinterpret_cast<uint32_t>(&descriptor + 1);
+            descriptor.DESC2 = ETH_DMATXNDESCRF_IOC; //Interrupt on complete
+            descriptor.DESC3 = ETH_DMATXNDESCRF_CIC_IPHDR_PAYLOAD_INSERT_PHDR_CALC | ETH_DMATXDESC_TCH /* Secound address chained */;
+            descriptor.DESC0 = reinterpret_cast<uint32_t>(&descriptor + 1);
         }
-        descriptors.back().DESC0 |= ETH_DMATXDESC_TER;
-        descriptors.back().DESC3 = reinterpret_cast<uint32_t>(&descriptors.front());
+        descriptors.back().DESC3 |= ETH_DMATXDESC_TER;//Transmit end of ring
+        descriptors.back().DESC0 = reinterpret_cast<uint32_t>(&descriptors.front());
 
-        peripheralEthernet[0]->DMATDLAR = reinterpret_cast<uint32_t>(descriptors.data());
+        peripheralEthernet[0]->DMACTDLAR = reinterpret_cast<uint32_t>(descriptors.data());
     }
 
     void EthernetMacStm::SendDescriptors::SendBuffer(infra::ConstByteRange data, bool last)
@@ -272,6 +274,7 @@ namespace hal
         __DSB();
         sendFirst = last;
 
+        //Issue a Transmit Poll Demand
         peripheralEthernet[0]->DMACTDTPR = 1;
 
         ++sendDescriptorIndex;
