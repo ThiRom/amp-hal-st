@@ -109,44 +109,44 @@ namespace hal
 
     void EthernetMacStm::ResetDma()
     {
-        peripheralEthernet[0]->DMABMR |= ETH_DMABMR_SR;
-        while ((peripheralEthernet[0]->DMABMR & ETH_DMABMR_SR) != 0)
+        peripheralEthernet[0]->DMAMR |= ETH_DMAMR_SWR;
+        while ((peripheralEthernet[0]->DMAMR & ETH_DMAMR_SWR) != 0)
         {}
     }
 
     void EthernetMacStm::Interrupt()
     {
         // Normal interrupt summary
-        if ((peripheralEthernet[0]->DMASR & ETH_DMASR_NIS) != 0)
+        if ((peripheralEthernet[0]->DMACSR & ETH_DMACSR_NIS) != 0)
         {
-            peripheralEthernet[0]->DMASR = ETH_DMASR_NIS;
+            peripheralEthernet[0]->DMACSR = ETH_DMACSR_NIS;
             // Transmit status
-            if ((peripheralEthernet[0]->DMASR & ETH_DMASR_TS) != 0)
+            if ((peripheralEthernet[0]->DMACSR & ETH_DMACSR_TI) != 0)
             {
-                peripheralEthernet[0]->DMASR = ETH_DMASR_TS;
+                peripheralEthernet[0]->DMACSR = ETH_DMACSR_TI;
                 sendDescriptors.SentFrame();
             }
 
             // Receive status
-            if ((peripheralEthernet[0]->DMASR & ETH_DMASR_RS) != 0)
+            if ((peripheralEthernet[0]->DMACSR & ETH_DMACSR_RI) != 0)
             {
-                peripheralEthernet[0]->DMASR = ETH_DMASR_RS;
+                peripheralEthernet[0]->DMACSR = ETH_DMACSR_RI;
                 receiveDescriptors.ReceivedFrame();
             }
         }
 
         // Abnormal interrupt summary
-        if ((peripheralEthernet[0]->DMASR & ETH_DMASR_AIS) != 0)
+        if ((peripheralEthernet[0]->DMACSR & ETH_DMACSR_AIS) != 0)
         {
             // Receiver process stopped: Indicates an error in our logic
-            if ((peripheralEthernet[0]->DMASR & ETH_DMASR_RPSS) != 0)
+            if ((peripheralEthernet[0]->DMACSR & ETH_DMACSR_RPS) != 0)
                 std::abort();
 
             // Fatal bus error by ethernet DMA: Indicates an error in setting up descriptors
-            if ((peripheralEthernet[0]->DMASR & ETH_DMASR_FBES) != 0)
+            if ((peripheralEthernet[0]->DMACSR & ETH_DMACSR_FBE) != 0)
                 std::abort();
 
-            peripheralEthernet[0]->DMASR = ETH_DMASR_AIS;
+            peripheralEthernet[0]->DMACSR = ETH_DMACSR_AIS;
         }
     }
 
