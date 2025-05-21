@@ -247,32 +247,32 @@ namespace hal
 
     void EthernetMacStm::SendDescriptors::SendBuffer(infra::ConstByteRange data, bool last)
     {
-        assert((descriptors[sendDescriptorIndex].DESC0 & ETH_DMATXDESC_OWN) == 0);
-        descriptors[sendDescriptorIndex].DESC1 = data.size();
-        descriptors[sendDescriptorIndex].DESC2 = reinterpret_cast<uint32_t>(data.begin());
+        assert((descriptors[sendDescriptorIndex].DESC3 & ETH_DMATXNDESCRF_OWN) == 0);
+        descriptors[sendDescriptorIndex].DESC2 = data.size();
+        descriptors[sendDescriptorIndex].DESC0 = reinterpret_cast<uint32_t>(data.begin());
 
         if (sendFirst)
-            descriptors[sendDescriptorIndex].DESC0 |= ETH_DMATXDESC_FS;
+            descriptors[sendDescriptorIndex].DESC3 |= ETH_DMATXNDESCRF_FD;
         else
-            descriptors[sendDescriptorIndex].DESC0 &= ~ETH_DMATXDESC_FS;
+            descriptors[sendDescriptorIndex].DESC3 &= ~ETH_DMATXNDESCRF_FD;
 
         if (last)
-            descriptors[sendDescriptorIndex].DESC0 |= ETH_DMATXDESC_LS;
+            descriptors[sendDescriptorIndex].DESC3 |= ETH_DMATXNDESCRF_LD;
         else
-            descriptors[sendDescriptorIndex].DESC0 &= ~ETH_DMATXDESC_LS;
+            descriptors[sendDescriptorIndex].DESC3 &= ~ETH_DMATXNDESCRF_LD;
 
-        descriptors[sendDescriptorIndex].DESC0 &= ~(ETH_DMATXDESC_DB | ETH_DMATXDESC_UF | ETH_DMATXDESC_ED | ETH_DMATXDESC_CC | ETH_DMATXDESC_EC | ETH_DMATXDESC_LCO | ETH_DMATXDESC_NC | ETH_DMATXDESC_LCA | ETH_DMATXDESC_PCE | ETH_DMATXDESC_FF | ETH_DMATXDESC_JT | ETH_DMATXDESC_ES | ETH_DMATXDESC_IHE);
+        descriptors[sendDescriptorIndex].DESC3 &= ~(ETH_DMATXNDESCWBF_DB | ETH_DMATXNDESCWBF_UF | ETH_DMATXNDESCWBF_ED | ETH_DMATXNDESCWBF_CC | ETH_DMATXNDESCWBF_EC | ETH_DMATXNDESCWBF_LCO | ETH_DMATXNDESCWBF_NC | ETH_DMATXNDESCWBF_LCA | ETH_DMATXNDESCWBF_PCE | ETH_DMATXNDESCWBF_FF | ETH_DMATXNDESCWBF_JT | ETH_DMATXNDESCWBF_ES | ETH_DMATXNDESCWBF_IHE);
 
         if (sendFirst)
             sendDescriptorIndexFirst = sendDescriptorIndex;
         else
-            descriptors[sendDescriptorIndex].DESC0 |= ETH_DMATXDESC_OWN;
+            descriptors[sendDescriptorIndex].DESC3 |= ETH_DMATXNDESCRF_OWN;
         if (last)
-            descriptors[sendDescriptorIndexFirst].DESC0 |= ETH_DMATXDESC_OWN;
+            descriptors[sendDescriptorIndexFirst].DESC3 |= ETH_DMATXNDESCRF_OWN;
         __DSB();
         sendFirst = last;
 
-        peripheralEthernet[0]->DMATPDR = 1;
+        peripheralEthernet[0]->DMACTDTPR = 1;
 
         ++sendDescriptorIndex;
         if (sendDescriptorIndex == descriptors.size())
@@ -283,11 +283,11 @@ namespace hal
     {
         uint32_t previousDescriptor = sendDescriptorIndex != 0 ? sendDescriptorIndex - 1 : descriptors.size() - 1;
 
-        bool sentDone = (descriptors[previousDescriptor].DESC0 & ETH_DMATXDESC_LS) != 0 && (descriptors[previousDescriptor].DESC0 & ETH_DMATXDESC_OWN) == 0;
+        bool sentDone = (descriptors[previousDescriptor].DESC3 & ETH_DMATXNDESCRF_FD) != 0 && (descriptors[previousDescriptor].DESC3 & ETH_DMATXCDESC_OWN) == 0;
         assert(sentDone);
         if (sentDone)
         {
-            descriptors[previousDescriptor].DESC0 &= ~ETH_DMATXDESC_LS;
+            descriptors[previousDescriptor].DESC3 &= ~ETH_DMATXNDESCRF_LD;
             ethernetMac.GetObserver().SentFrame();
         }
     }
