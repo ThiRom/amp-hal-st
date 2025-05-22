@@ -29,7 +29,7 @@ namespace hal
         peripheralEthernet[0]->MACCR = ((linkSpeed == LinkSpeed::fullDuplex100MHz || linkSpeed == LinkSpeed::halfDuplex100MHz) ? ETH_MACCR_FES : 0) | ((linkSpeed == LinkSpeed::fullDuplex100MHz || linkSpeed == LinkSpeed::fullDuplex10MHz) ? ETH_MACCR_DM : 0) | ETH_MACCR_TE | ETH_MACCR_RE;
 
         //Set default DMA settings like in HAL_ETH see ETH_MACDMAConfig()
-        peripheralEthernet[0]->DMASBMR = ETH_DMASBMR_RB | ETH_DMASBMR_AAL;
+        peripheralEthernet[0]->DMASBMR = ETH_DMASBMR_AAL;
         peripheralEthernet[0]->DMACCR = ETH_SEGMENT_SIZE_DEFAULT;
         peripheralEthernet[0]->DMACTCR = ETH_DMACTCR_TPBL_32PBL;
         peripheralEthernet[0]->DMACRCR = ETH_DMACRCR_RPBL_32PBL;
@@ -238,13 +238,15 @@ namespace hal
         for (auto& descriptor : descriptors)
         {
             descriptor.DESC2 = ETH_DMATXNDESCRF_IOC; //Interrupt on complete
-            descriptor.DESC3 = ETH_DMATXNDESCRF_CIC_IPHDR_PAYLOAD_INSERT_PHDR_CALC | ETH_DMATXDESC_TCH /* Secound address chained */;
-            descriptor.DESC0 = reinterpret_cast<uint32_t>(&descriptor + 1);
+            descriptor.DESC3 = ETH_DMATXNDESCRF_CIC_IPHDR_PAYLOAD_INSERT_PHDR_CALC;
         }
-        descriptors.back().DESC3 |= ETH_DMATXDESC_TER;//Transmit end of ring -> tail pointer?
-        descriptors.back().DESC0 = reinterpret_cast<uint32_t>(&descriptors.front());
 
+        //Set Channel Tx descriptor list address register
         peripheralEthernet[0]->DMACTDLAR = reinterpret_cast<uint32_t>(descriptors.data());
+        //Set tail pointer to first element
+        peripheralEthernet[0]->DMACTDTPR = reinterpret_cast<uint32_t>(descriptors.data());
+        //Set Channel Tx descriptor ring length register
+        peripheralEthernet[0]->DMACTRLR = 12;
     }
 
     void EthernetMacStm::SendDescriptors::SendBuffer(infra::ConstByteRange data, bool last)
