@@ -241,7 +241,7 @@ namespace hal
             descriptor.DESC3 = ETH_DMATXNDESCRF_CIC_IPHDR_PAYLOAD_INSERT_PHDR_CALC | ETH_DMATXDESC_TCH /* Secound address chained */;
             descriptor.DESC0 = reinterpret_cast<uint32_t>(&descriptor + 1);
         }
-        descriptors.back().DESC3 |= ETH_DMATXDESC_TER;//Transmit end of ring
+        descriptors.back().DESC3 |= ETH_DMATXDESC_TER;//Transmit end of ring -> tail pointer?
         descriptors.back().DESC0 = reinterpret_cast<uint32_t>(&descriptors.front());
 
         peripheralEthernet[0]->DMACTDLAR = reinterpret_cast<uint32_t>(descriptors.data());
