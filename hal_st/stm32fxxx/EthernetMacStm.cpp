@@ -237,14 +237,13 @@ namespace hal
     {
         for (auto& descriptor : descriptors)
         {
-            descriptor.DESC2 = ETH_DMATXNDESCRF_IOC; //Interrupt on complete
             descriptor.DESC3 = ETH_DMATXNDESCRF_CIC_IPHDR_PAYLOAD_INSERT_PHDR_CALC;
         }
 
         //Set Channel Tx descriptor list address register
-        peripheralEthernet[0]->DMACTDLAR = reinterpret_cast<uint32_t>(&descriptors.front());
+        peripheralEthernet[0]->DMACTDLAR = reinterpret_cast<uint32_t>(&descriptors[0]);
         //Set tail pointer to first element
-        peripheralEthernet[0]->DMACTDTPR = reinterpret_cast<uint32_t>(&descriptors.front());
+        peripheralEthernet[0]->DMACTDTPR = reinterpret_cast<uint32_t>(&descriptors[0]]);
         //Set Channel Tx descriptor ring length register
         peripheralEthernet[0]->DMACTRLR = 12;
     }
@@ -252,7 +251,7 @@ namespace hal
     void EthernetMacStm::SendDescriptors::SendBuffer(infra::ConstByteRange data, bool last)
     {
         assert((descriptors[sendDescriptorIndex].DESC3 & ETH_DMATXNDESCRF_OWN) == 0);
-        descriptors[sendDescriptorIndex].DESC2 = data.size();
+        descriptors[sendDescriptorIndex].DESC2 = data.size() | ETH_DMATXNDESCRF_IOC; // Set IOC bit here
         descriptors[sendDescriptorIndex].DESC0 = reinterpret_cast<uint32_t>(data.begin());
 
         if (sendFirst)
@@ -265,6 +264,7 @@ namespace hal
         else
             descriptors[sendDescriptorIndex].DESC3 &= ~ETH_DMATXNDESCRF_LD;
 
+        //Clear status bits
         descriptors[sendDescriptorIndex].DESC3 &= ~(ETH_DMATXNDESCWBF_DB | ETH_DMATXNDESCWBF_UF | ETH_DMATXNDESCWBF_ED | ETH_DMATXNDESCWBF_CC | ETH_DMATXNDESCWBF_EC | ETH_DMATXNDESCWBF_LCO | ETH_DMATXNDESCWBF_NC | ETH_DMATXNDESCWBF_LCA | ETH_DMATXNDESCWBF_PCE | ETH_DMATXNDESCWBF_FF | ETH_DMATXNDESCWBF_JT | ETH_DMATXNDESCWBF_ES | ETH_DMATXNDESCWBF_IHE);
 
         if (sendFirst)
@@ -276,12 +276,12 @@ namespace hal
         __DSB();
         sendFirst = last;
 
-        //Issue a Transmit Poll Demand
-        peripheralEthernet[0]->DMACTDTPR = 1;
-
         ++sendDescriptorIndex;
         if (sendDescriptorIndex == descriptors.size())
             sendDescriptorIndex = 0;
+
+        //Updating the tail pointer will issue a poll request
+        peripheralEthernet[0]->DMACTDTPR = reinterpret_cast<uint32_t>(&descriptors[sendDescriptorIndex]);
     }
 
     void EthernetMacStm::SendDescriptors::SentFrame()
