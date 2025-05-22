@@ -242,9 +242,9 @@ namespace hal
         }
 
         //Set Channel Tx descriptor list address register
-        peripheralEthernet[0]->DMACTDLAR = reinterpret_cast<uint32_t>(descriptors.data());
+        peripheralEthernet[0]->DMACTDLAR = reinterpret_cast<uint32_t>(&descriptors.front());
         //Set tail pointer to first element
-        peripheralEthernet[0]->DMACTDTPR = reinterpret_cast<uint32_t>(descriptors.data());
+        peripheralEthernet[0]->DMACTDTPR = reinterpret_cast<uint32_t>(&descriptors.front());
         //Set Channel Tx descriptor ring length register
         peripheralEthernet[0]->DMACTRLR = 12;
     }
