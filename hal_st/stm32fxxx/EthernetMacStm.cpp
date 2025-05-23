@@ -280,20 +280,18 @@ namespace hal
 
     bool EthernetMacStm::ReceiveDescriptors::RequestReceiveBuffer()
     {
-        assert((descriptors[receiveDescriptorAllocatedIndex].DESC0 & ETH_DMARXDESC_OWN) == 0);
+        assert((descriptors[receiveDescriptorAllocatedIndex].DESC3 & ETH_DMARXNDESCWBF_OWN) == 0);
 
         infra::ByteRange buffer = ethernetMac.GetObserver().RequestReceiveBuffer();
         if (buffer.empty())
             return false;
 
-        descriptors[receiveDescriptorAllocatedIndex].DESC0 &= ~(ETH_DMARXDESC_MAMPCE | ETH_DMARXDESC_CE | ETH_DMARXDESC_DBE | ETH_DMARXDESC_RE | ETH_DMARXDESC_RWT | ETH_DMARXDESC_LC | ETH_DMARXDESC_IPV4HCE | ETH_DMARXDESC_LS | ETH_DMARXDESC_VLAN | ETH_DMARXDESC_OE | ETH_DMARXDESC_LE | ETH_DMARXDESC_SAF | ETH_DMARXDESC_DE | ETH_DMARXDESC_ES | ETH_DMARXDESC_FL | ETH_DMARXDESC_AFM);
-        descriptors[receiveDescriptorAllocatedIndex].DESC1 = buffer.size() | ETH_DMARXDESC_RCH;
-        descriptors[receiveDescriptorAllocatedIndex].DESC2 = reinterpret_cast<uint32_t>(buffer.begin());
-        descriptors[receiveDescriptorAllocatedIndex].DESC0 |= ETH_DMARXDESC_OWN;
+        descriptors[receiveDescriptorAllocatedIndex].DESC0 = reinterpret_cast<uint32_t>(buffer.begin());
+        descriptors[receiveDescriptorAllocatedIndex].DESC3 |= ETH_DMARXNDESCRF_OWN | ETH_DMARXNDESCRF_IOC | ETH_DMARXNDESCRF_BUF1V;
 
         __DSB();
-        peripheralEthernet[0]->DMASR = ETH_DMASR_RBUS;
-        peripheralEthernet[0]->DMARPDR = 1;
+
+        peripheralEthernet[0]->DMACRCR |= ETH_DMACRCR_SR; //Start Receive
 
         ++receivedFramesAllocated;
         ++receiveDescriptorAllocatedIndex;
