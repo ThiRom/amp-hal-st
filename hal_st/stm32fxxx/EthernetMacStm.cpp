@@ -224,15 +224,18 @@ namespace hal
     {
         for (auto& descriptor : descriptors)
         {
-            descriptor.DESC0 = ETH_DMARXDESC_RCH;
+            descriptor.DESC0 = 0;
             descriptor.DESC1 = 0;
-            descriptor.DESC3 = reinterpret_cast<uint32_t>(&descriptor + 1);
-            descriptor.DESC4 = 0;
+            descriptor.DESC2 = 0;
+            descriptor.DESC3 = 0;
         }
-        descriptors.back().DESC1 |= ETH_DMARXDESC_RER;
-        descriptors.back().DESC3 = reinterpret_cast<uint32_t>(&descriptors.front());
 
-        peripheralEthernet[0]->DMARDLAR = reinterpret_cast<uint32_t>(descriptors.data());
+        //Set Channel Rx descriptor list address register
+        peripheralEthernet[0]->DMACRDLAR = reinterpret_cast<uint32_t>(&descriptors[0]);
+        //Set tail pointer to last element
+        peripheralEthernet[0]->DMACRDTPR = reinterpret_cast<uint32_t>(&descriptors[8 - 1]);
+        //Set Channel Rx descriptor ring length register
+        peripheralEthernet[0]->DMACRDRLR = 8;
 
         infra::EventDispatcher::Instance().Schedule([this]()
             {
@@ -313,7 +316,7 @@ namespace hal
         //Set tail pointer to first element
         peripheralEthernet[0]->DMACTDTPR = reinterpret_cast<uint32_t>(&descriptors[0]);
         //Set Channel Tx descriptor ring length register
-        peripheralEthernet[0]->DMACTRLR = 12;
+        peripheralEthernet[0]->DMACTDRLR = 12;
     }
 
     void EthernetMacStm::SendDescriptors::SendBuffer(infra::ConstByteRange data, bool last)
