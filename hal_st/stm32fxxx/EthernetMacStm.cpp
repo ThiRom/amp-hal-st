@@ -246,12 +246,12 @@ namespace hal
 
     void EthernetMacStm::ReceiveDescriptors::ReceivedFrame()
     {
-        while (receivedFramesAllocated != 0 && (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_OWN) == 0)
+        while (receivedFramesAllocated != 0 && (descriptors[receiveDescriptorReceiveIndex].DESC3 & ETH_DMARXNDESCWBF_OWN) == 0)
         {
-            bool receiveDone = (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_OWN) == 0 && (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_LS) != 0;
-            uint16_t frameSize = (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_FL) >> 16;
-            bool errorFrame = (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_ES) != 0 && (descriptors[receiveDescriptorReceiveIndex].DESC0 & ETH_DMARXDESC_LS) != 0;
-            descriptors[receiveDescriptorReceiveIndex].DESC2 = 0;
+            bool receiveDone = (descriptors[receiveDescriptorReceiveIndex].DESC3 & ETH_DMARXNDESCWBF_OWN) == 0 && (descriptors[receiveDescriptorReceiveIndex].DESC3 & ETH_DMARXNDESCWBF_LD) != 0;
+            uint16_t frameSize = (descriptors[receiveDescriptorReceiveIndex].DESC3 & ETH_DMARXNDESCWBF_PL);
+            bool errorFrame = (descriptors[receiveDescriptorReceiveIndex].DESC3 & ETH_DMARXNDESCWBF_ES) != 0 && (descriptors[receiveDescriptorReceiveIndex].DESC3 & ETH_DMARXNDESCWBF_LD) != 0;
+            descriptors[receiveDescriptorReceiveIndex].DESC0 = 0; //Buffer address
             ++receivedFrameBuffers;
             --receivedFramesAllocated;
             ++receiveDescriptorReceiveIndex;
