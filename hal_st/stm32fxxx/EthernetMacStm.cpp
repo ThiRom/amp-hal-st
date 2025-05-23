@@ -306,6 +306,9 @@ namespace hal
     {
         for (auto& descriptor : descriptors)
         {
+            descriptor.DESC0 = 0;
+            descriptor.DESC1 = 0;
+            descriptor.DESC2 = 0;
             descriptor.DESC3 = ETH_DMATXNDESCRF_CIC_IPHDR_PAYLOAD_INSERT_PHDR_CALC;
         }
 
