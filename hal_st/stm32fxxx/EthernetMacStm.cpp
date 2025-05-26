@@ -37,49 +37,6 @@ namespace hal
         // Dummy read to sync with ETH
         (void)SBS->PMCR;
 
-        // Get the ETHERNET MACMDIOAR value
-        tmpreg = peripheralEthernet[0]->MACMDIOAR;
-        // Clear CSR Clock Range bits
-        tmpreg &= ~ETH_MACMDIOAR_CR;
-        // Get hclk frequency value
-        hclk = HAL_RCC_GetHCLKFreq();
-        // Set CR bits depending on hclk value
-        if (hclk < 35000000U)
-        {
-            // CSR Clock Range between 0-35 MHz
-            tmpreg |= ETH_MACMDIOAR_CR_DIV16;
-        }
-        else if (hclk < 60000000U)
-        {
-            // CSR Clock Range between 35-60 MHz
-            tmpreg |= ETH_MACMDIOAR_CR_DIV26;
-        }
-        else if (hclk < 100000000U)
-        {
-            // CSR Clock Range between 60-100 MHz
-            tmpreg |= ETH_MACMDIOAR_CR_DIV42;
-        }
-        else if (hclk < 150000000U)
-        {
-            // CSR Clock Range between 100-150 MHz
-            tmpreg |= ETH_MACMDIOAR_CR_DIV62;
-        }
-        else if (hclk < 250000000U)
-        {
-            // CSR Clock Range between 150-250 MHz
-            tmpreg |= ETH_MACMDIOAR_CR_DIV102;
-        }
-        else // (hclk >= 250000000U)
-        {
-            // CSR Clock >= 250 MHz
-            tmpreg |= ETH_MACMDIOAR_CR_DIV124;
-        }
-        // Configure the CSR Clock Range
-        peripheralEthernet[0]->MACMDIOAR |= tmpreg;
-
-        // MAC LPI 1US Tic Counter Configuration
-        peripheralEthernet[0]->MAC1USTCR |= (((uint32_t)HAL_RCC_GetHCLKFreq() / ETH_MAC_US_TICK) - 1U);
-
         // Set MAC address
         peripheralEthernet[0]->MACA0LR = reinterpret_cast<const uint32_t*>(macAddress.data())[0];
         peripheralEthernet[0]->MACA0HR = reinterpret_cast<const uint32_t*>(macAddress.data())[1] & 0xffff;
