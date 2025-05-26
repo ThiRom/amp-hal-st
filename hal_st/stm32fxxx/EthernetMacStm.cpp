@@ -352,9 +352,10 @@ namespace hal
         if (sendDescriptorIndex == descriptors.size())
             sendDescriptorIndex = 0;
 
-        //Updating the tail pointer will issue a poll request
+        //Update the tail pointer
         peripheralEthernet[0]->DMACTDTPR = reinterpret_cast<uint32_t>(&descriptors[sendDescriptorIndex]);
-        peripheralEthernet[0]->DMACTCR |= ETH_DMACRCR_SR; //Start transmit
+        //Start transmit
+        peripheralEthernet[0]->DMACTCR |= ETH_DMACRCR_SR;
     }
 
     void EthernetMacStm::SendDescriptors::SentFrame()
