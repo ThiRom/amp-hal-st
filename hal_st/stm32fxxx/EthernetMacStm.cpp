@@ -30,6 +30,8 @@ namespace hal
 
         EnableClockEthernet(0);
 
+        __HAL_RCC_SBS_CLK_ENABLE();
+
         // Select RMII Mode
         MODIFY_REG(SBS->PMCR, SBS_PMCR_ETH_SEL_PHY, (uint32_t)(SBS_ETH_RMII));
         // Dummy read to sync with ETH
@@ -96,14 +98,32 @@ namespace hal
         peripheralEthernet[0]->DMACTCR |= ETH_DMACTCR_TPBL_32PBL;
         peripheralEthernet[0]->DMACRCR |= ETH_DMACRCR_RPBL_32PBL;
 
-        //Enable interrupts
-        peripheralEthernet[0]->DMACIER |= ETH_DMACIER_TIE | ETH_DMACIER_RIE | ETH_DMACIER_RSE | ETH_DMACIER_FBEE | ETH_DMACIER_AIE | ETH_DMACIER_NIE;
-
         // Disable Rx MMC Interrupts (mask register -> 1 = OFF)
         peripheralEthernet[0]->MMCRIMR |= ETH_MMCRIMR_RXLPITRCIM | ETH_MMCRIMR_RXLPIUSCIM | ETH_MMCRIMR_RXUCGPIM | ETH_MMCRIMR_RXALGNERPIM | ETH_MMCRIMR_RXCRCERPIM;
 
         // Disable Tx MMC Interrupts (mask register -> 1 = OFF)
         peripheralEthernet[0]->MMCTIMR |= ETH_MMCTIMR_TXLPITRCIM | ETH_MMCTIMR_TXLPIUSCIM | ETH_MMCTIMR_TXGPKTIM | ETH_MMCTIMR_TXMCOLGPIM | ETH_MMCTIMR_TXSCOLGPIM;
+
+        // Enable the DMA transmission
+        peripheralEthernet[0]->DMACTCR |= ETH_DMACTCR_ST;
+
+        // Enable the DMA reception
+        peripheralEthernet[0]->DMACRCR |= ETH_DMACRCR_SR;
+
+        // Clear Tx and Rx process stopped flags
+        peripheralEthernet[0]->DMACSR |= (ETH_DMACSR_TPS | ETH_DMACSR_RPS);
+
+        // Set the Flush Transmit FIFO bit
+        peripheralEthernet[0]->MTLTQOMR |= ETH_MTLTQOMR_FTQ;
+
+        // Enable the MAC transmission
+        peripheralEthernet[0]->MACCR |= ETH_MACCR_TE;
+
+        // Enable the MAC reception
+        peripheralEthernet[0]->MACCR |= ETH_MACCR_RE;
+
+        //Enable interrupts
+        peripheralEthernet[0]->DMACIER |= ETH_DMACIER_TIE | ETH_DMACIER_RIE | ETH_DMACIER_RSE | ETH_DMACIER_FBEE | ETH_DMACIER_AIE | ETH_DMACIER_NIE;
     }
 
     EthernetMacStm::~EthernetMacStm()
@@ -352,10 +372,8 @@ namespace hal
         if (sendDescriptorIndex == descriptors.size())
             sendDescriptorIndex = 0;
 
-        //Update the tail pointer
+        // Start transmission -> issue a poll command to Tx DMA by writing address of next immediate free descriptor
         peripheralEthernet[0]->DMACTDTPR = reinterpret_cast<uint32_t>(&descriptors[sendDescriptorIndex]);
-        //Start transmit
-        peripheralEthernet[0]->DMACTCR |= ETH_DMACRCR_SR;
     }
 
     void EthernetMacStm::SendDescriptors::SentFrame()
