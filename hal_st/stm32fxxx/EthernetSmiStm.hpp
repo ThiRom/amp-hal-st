@@ -14,7 +14,7 @@ namespace hal
     public:
         EthernetSmiStm(hal::GpioPinStm& ethernetMdio, hal::GpioPinStm& ethernetMdc, hal::GpioPinStm& ethernetRmiiRefClk, hal::GpioPinStm& ethernetRmiiCrsDv,
             hal::GpioPinStm& ethernetRmiiRxD0, hal::GpioPinStm& ethernetRmiiRxD1, hal::GpioPinStm& ethernetRmiiTxEn,
-            hal::GpioPinStm& ethernetRmiiTxD0, hal::GpioPinStm& ethernetRmiiTxD1, uint16_t phyAddress = 0);
+            hal::GpioPinStm& ethernetRmiiTxD0, hal::GpioPinStm& ethernetRmiiTxD1, uint16_t phyAddress = 1);
         ~EthernetSmiStm();
 
     public:
