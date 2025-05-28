@@ -186,13 +186,13 @@ namespace hal
         {
             // Receiver process stopped: Indicates an error in our logic
             if ((peripheralEthernet[0]->DMACSR & ETH_DMACSR_RPS) != 0)
-                std::abort();
+                // std::abort();
 
             // Fatal bus error by ethernet DMA: Indicates an error in setting up descriptors
             if ((peripheralEthernet[0]->DMACSR & ETH_DMACSR_FBE) != 0)
-                std::abort();
+                //std::abort();
 
-            peripheralEthernet[0]->DMACSR = ETH_DMACSR_AIS;
+            peripheralEthernet[0]->DMACSR |= ETH_DMACSR_AIS | ETH_DMACSR_RPS | ETH_DMACSR_FBE;
         }
     }
 
