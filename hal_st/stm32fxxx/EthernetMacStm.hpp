@@ -61,7 +61,7 @@ namespace hal
         private:
             EthernetMacStm& ethernetMac;
 
-            alignas(uint64_t) std::array<ETH_DMADescTypeDef, 12> descriptors;
+            alignas(uint64_t) std::array<ETH_DMADescTypeDef, 4> descriptors;
 
             uint32_t sendDescriptorIndexFirst = 0;
             uint32_t sendDescriptorIndex = 0;
