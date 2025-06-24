@@ -39,6 +39,20 @@ namespace hal
         // Dummy read to sync with ETH
         (void)SBS->PMCR;
 
+        // Ethernet Software reset
+        // Set the SWR bit: resets all MAC subsystem internal registers and logic
+        // After reset all the registers holds their respective reset values
+        peripheralEthernet[0]->DMAMR |= ETH_DMAMR_SWR;
+        while ((peripheralEthernet[0]->DMAMR & ETH_DMAMR_SWR) != 0)
+        {}
+
+        //Set Channel Tx descriptor list address register
+        peripheralEthernet[0]->DMACTDLAR = reinterpret_cast<uint32_t>(&sendDescriptors.descriptors[0]);
+        //Set tail pointer to first element
+        peripheralEthernet[0]->DMACTDTPR = reinterpret_cast<uint32_t>(&sendDescriptors.descriptors[0]);
+        //Set Channel Tx descriptor ring length register (must be len - 1)
+        peripheralEthernet[0]->DMACTDRLR = 12 - 1;
+
         // Set MAC address
         peripheralEthernet[0]->MACA0LR = reinterpret_cast<const uint32_t*>(macAddress.data())[0];
         peripheralEthernet[0]->MACA0HR = reinterpret_cast<const uint32_t*>(macAddress.data())[1] & 0xffff;
@@ -87,7 +101,6 @@ namespace hal
 
     EthernetMacStm::~EthernetMacStm()
     {
-
         MODIFY_REG(peripheralEthernet[0]->MACCR, ETH_MACCR_MASK, 0);
     }
 
@@ -295,8 +308,8 @@ namespace hal
         peripheralEthernet[0]->DMACTDLAR = reinterpret_cast<uint32_t>(&descriptors[0]);
         //Set tail pointer to first element
         peripheralEthernet[0]->DMACTDTPR = reinterpret_cast<uint32_t>(&descriptors[0]);
-        //Set Channel Tx descriptor ring length register
-        peripheralEthernet[0]->DMACTDRLR = 4 - 1;
+        //Set Channel Tx descriptor ring length register (must be len - 1)
+        peripheralEthernet[0]->DMACTDRLR = 12 - 1;
     }
 
     void EthernetMacStm::SendDescriptors::SendBuffer(infra::ConstByteRange data, bool last)

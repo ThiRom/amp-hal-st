@@ -57,11 +57,10 @@ namespace hal
 
             void SendBuffer(infra::ConstByteRange data, bool last);
             void SentFrame();
+            alignas(uint64_t) std::array<ETH_DMADescTypeDef, 12> descriptors;
 
         private:
             EthernetMacStm& ethernetMac;
-
-            alignas(uint64_t) std::array<ETH_DMADescTypeDef, 4> descriptors;
 
             uint32_t sendDescriptorIndexFirst = 0;
             uint32_t sendDescriptorIndex = 0;
@@ -72,9 +71,8 @@ namespace hal
         EthernetSmi& ethernetSmi;
         MacAddress macAddress;
         DispatchedInterruptHandler interrupt;
-
-        ReceiveDescriptors receiveDescriptors;
         SendDescriptors sendDescriptors;
+        ReceiveDescriptors receiveDescriptors;
     };
 }
 
