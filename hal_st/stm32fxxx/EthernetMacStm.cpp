@@ -53,6 +53,13 @@ namespace hal
         //Set Channel Tx descriptor ring length register (must be len - 1)
         peripheralEthernet[0]->DMACTDRLR = 12 - 1;
 
+        //Set Channel Rx descriptor list address register
+        peripheralEthernet[0]->DMACRDLAR = reinterpret_cast<uint32_t>(&receiveDescriptors.descriptors[0]);
+        //Set tail pointer to last element
+        peripheralEthernet[0]->DMACRDTPR = reinterpret_cast<uint32_t>(&receiveDescriptors.descriptors[8 - 1]);
+        //Set Channel Rx descriptor ring length register (must be len - 1)
+        peripheralEthernet[0]->DMACRDRLR = 8 - 1;
+
         // Set MAC address
         peripheralEthernet[0]->MACA0LR = reinterpret_cast<const uint32_t*>(macAddress.data())[0];
         peripheralEthernet[0]->MACA0HR = reinterpret_cast<const uint32_t*>(macAddress.data())[1] & 0xffff;
@@ -81,7 +88,7 @@ namespace hal
         peripheralEthernet[0]->DMACTCR |= ETH_DMACTCR_ST;
 
         // Enable the DMA reception
-        //peripheralEthernet[0]->DMACRCR |= ETH_DMACRCR_SR;
+        peripheralEthernet[0]->DMACRCR |= ETH_DMACRCR_SR;
 
         // Clear Tx and Rx process stopped flags
         peripheralEthernet[0]->DMACSR |= (ETH_DMACSR_TPS | ETH_DMACSR_RPS);
@@ -93,7 +100,7 @@ namespace hal
         peripheralEthernet[0]->MACCR |= ETH_MACCR_TE;
 
         // Enable the MAC reception
-        //peripheralEthernet[0]->MACCR |= ETH_MACCR_RE;
+        peripheralEthernet[0]->MACCR |= ETH_MACCR_RE;
 
         //Enable interrupts
         peripheralEthernet[0]->DMACIER |= ETH_DMACIER_TIE | ETH_DMACIER_RIE | ETH_DMACIER_RSE | ETH_DMACIER_FBEE | ETH_DMACIER_AIE | ETH_DMACIER_NIE;
@@ -222,13 +229,6 @@ namespace hal
             descriptor.DESC3 = 0;
         }
 
-        // //Set Channel Rx descriptor list address register
-        // peripheralEthernet[0]->DMACRDLAR = reinterpret_cast<uint32_t>(&descriptors[0]);
-        // //Set tail pointer to last element
-        // peripheralEthernet[0]->DMACRDTPR = reinterpret_cast<uint32_t>(&descriptors[8 - 1]);
-        // //Set Channel Rx descriptor ring length register
-        // peripheralEthernet[0]->DMACRDRLR = 8;
-
         infra::EventDispatcher::Instance().Schedule([this]()
             {
                 // This is scheduled so that the observer is instantiated
@@ -283,7 +283,7 @@ namespace hal
 
         __DSB();
 
-        // peripheralEthernet[0]->DMACRCR |= ETH_DMACRCR_SR; //Start Receive
+        peripheralEthernet[0]->DMACRCR |= ETH_DMACRCR_SR; //Start Receive
 
         ++receivedFramesAllocated;
         ++receiveDescriptorAllocatedIndex;
@@ -303,13 +303,6 @@ namespace hal
             descriptor.DESC2 = 0;
             descriptor.DESC3 = ETH_DMATXNDESCRF_CIC_IPHDR_PAYLOAD_INSERT_PHDR_CALC;
         }
-
-        //Set Channel Tx descriptor list address register
-        peripheralEthernet[0]->DMACTDLAR = reinterpret_cast<uint32_t>(&descriptors[0]);
-        //Set tail pointer to first element
-        peripheralEthernet[0]->DMACTDTPR = reinterpret_cast<uint32_t>(&descriptors[0]);
-        //Set Channel Tx descriptor ring length register (must be len - 1)
-        peripheralEthernet[0]->DMACTDRLR = 12 - 1;
     }
 
     void EthernetMacStm::SendDescriptors::SendBuffer(infra::ConstByteRange data, bool last)
