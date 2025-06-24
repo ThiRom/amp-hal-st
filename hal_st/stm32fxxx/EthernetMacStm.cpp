@@ -67,7 +67,7 @@ namespace hal
         // Set default MAC settings like in HAL_ETH see ETH_MACDMAConfig()
         peripheralEthernet[0]->MACCR |= ((linkSpeed == LinkSpeed::fullDuplex100MHz || linkSpeed == LinkSpeed::halfDuplex100MHz) ? ETH_MACCR_FES : 0) |
                                         ((linkSpeed == LinkSpeed::fullDuplex100MHz || linkSpeed == LinkSpeed::fullDuplex10MHz) ? ETH_MACCR_DM : 0) |
-                                        ETH_MACCR_SARC_REPADDR0 | ETH_MACCR_CST | ETH_MACCR_IPC | ETH_MACCR_JD | ETH_MACCR_TE | ETH_MACCR_RE;
+                                        ETH_MACCR_SARC_REPADDR0 | ETH_MACCR_CST | ETH_MACCR_IPC | ETH_MACCR_ACS | ETH_MACCR_JD | ETH_MACCR_TE | ETH_MACCR_RE;
 
         // Set Transmit Store and Forward
         peripheralEthernet[0]->MTLTQOMR |= ETH_MTLTQOMR_TSF;
@@ -323,6 +323,7 @@ namespace hal
 
         // Clear status bits
         descriptors[sendDescriptorIndex].DESC3 &= ~(ETH_DMATXNDESCWBF_DB | ETH_DMATXNDESCWBF_UF | ETH_DMATXNDESCWBF_ED | ETH_DMATXNDESCWBF_CC | ETH_DMATXNDESCWBF_EC | ETH_DMATXNDESCWBF_LCO | ETH_DMATXNDESCWBF_NC | ETH_DMATXNDESCWBF_LCA | ETH_DMATXNDESCWBF_PCE | ETH_DMATXNDESCWBF_FF | ETH_DMATXNDESCWBF_JT | ETH_DMATXNDESCWBF_ES | ETH_DMATXNDESCWBF_IHE);
+        descriptors[sendDescriptorIndex].DESC3 |= ETH_DMATXNDESCRF_CIC_IPHDR_PAYLOAD_INSERT_PHDR_CALC;
 
         __DMB();
 
