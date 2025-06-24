@@ -46,33 +46,33 @@ namespace hal
         while ((peripheralEthernet[0]->DMAMR & ETH_DMAMR_SWR) != 0)
         {}
 
-        //Set Channel Tx descriptor list address register
+        // Set Channel Tx descriptor list address register
         peripheralEthernet[0]->DMACTDLAR = reinterpret_cast<uint32_t>(&sendDescriptors.descriptors[0]);
-        //Set tail pointer to first element
+        // Set tail pointer to first element
         peripheralEthernet[0]->DMACTDTPR = reinterpret_cast<uint32_t>(&sendDescriptors.descriptors[0]);
-        //Set Channel Tx descriptor ring length register (must be len - 1)
+        // Set Channel Tx descriptor ring length register (must be len - 1)
         peripheralEthernet[0]->DMACTDRLR = 12 - 1;
 
-        //Set Channel Rx descriptor list address register
+        // Set Channel Rx descriptor list address register
         peripheralEthernet[0]->DMACRDLAR = reinterpret_cast<uint32_t>(&receiveDescriptors.descriptors[0]);
-        //Set tail pointer to last element
+        // Set tail pointer to last element
         peripheralEthernet[0]->DMACRDTPR = reinterpret_cast<uint32_t>(&receiveDescriptors.descriptors[8 - 1]);
-        //Set Channel Rx descriptor ring length register (must be len - 1)
+        // Set Channel Rx descriptor ring length register (must be len - 1)
         peripheralEthernet[0]->DMACRDRLR = 8 - 1;
 
         // Set MAC address
         peripheralEthernet[0]->MACA0LR = reinterpret_cast<const uint32_t*>(macAddress.data())[0];
         peripheralEthernet[0]->MACA0HR = reinterpret_cast<const uint32_t*>(macAddress.data())[1] & 0xffff;
 
-        //Set default MAC settings like in HAL_ETH see ETH_MACDMAConfig()
+        // Set default MAC settings like in HAL_ETH see ETH_MACDMAConfig()
         peripheralEthernet[0]->MACCR |= ((linkSpeed == LinkSpeed::fullDuplex100MHz || linkSpeed == LinkSpeed::halfDuplex100MHz) ? ETH_MACCR_FES : 0) |
                                         ((linkSpeed == LinkSpeed::fullDuplex100MHz || linkSpeed == LinkSpeed::fullDuplex10MHz) ? ETH_MACCR_DM : 0) |
                                         ETH_MACCR_SARC_REPADDR0 | ETH_MACCR_CST | ETH_MACCR_IPC | ETH_MACCR_JD | ETH_MACCR_TE | ETH_MACCR_RE;
 
-        //Set Transmit Store and Forward
+        // Set Transmit Store and Forward
         peripheralEthernet[0]->MTLTQOMR |= ETH_MTLTQOMR_TSF;
 
-        //Set default DMA settings like in HAL_ETH see ETH_MACDMAConfig()
+        // Set default DMA settings like in HAL_ETH see ETH_MACDMAConfig()
         peripheralEthernet[0]->DMASBMR |= ETH_DMASBMR_AAL;
         peripheralEthernet[0]->DMACCR |= ETH_SEGMENT_SIZE_DEFAULT | ETH_DMACCR_DSL_64BIT;
         peripheralEthernet[0]->DMACTCR |= ETH_DMACTCR_TPBL_32PBL;
@@ -87,9 +87,6 @@ namespace hal
         // Enable the DMA transmission
         peripheralEthernet[0]->DMACTCR |= ETH_DMACTCR_ST;
 
-        // Enable the DMA reception
-        peripheralEthernet[0]->DMACRCR |= ETH_DMACRCR_SR;
-
         // Clear Tx and Rx process stopped flags
         peripheralEthernet[0]->DMACSR |= (ETH_DMACSR_TPS | ETH_DMACSR_RPS);
 
@@ -99,10 +96,7 @@ namespace hal
         // Enable the MAC transmission
         peripheralEthernet[0]->MACCR |= ETH_MACCR_TE;
 
-        // Enable the MAC reception
-        peripheralEthernet[0]->MACCR |= ETH_MACCR_RE;
-
-        //Enable interrupts
+        // Enable interrupts
         peripheralEthernet[0]->DMACIER |= ETH_DMACIER_TIE | ETH_DMACIER_RIE | ETH_DMACIER_RSE | ETH_DMACIER_FBEE | ETH_DMACIER_AIE | ETH_DMACIER_NIE;
     }
 
@@ -243,7 +237,7 @@ namespace hal
             bool receiveDone = (descriptors[receiveDescriptorReceiveIndex].DESC3 & ETH_DMARXNDESCWBF_OWN) == 0 && (descriptors[receiveDescriptorReceiveIndex].DESC3 & ETH_DMARXNDESCWBF_LD) != 0;
             uint16_t frameSize = (descriptors[receiveDescriptorReceiveIndex].DESC3 & ETH_DMARXNDESCWBF_PL);
             bool errorFrame = (descriptors[receiveDescriptorReceiveIndex].DESC3 & ETH_DMARXNDESCWBF_ES) != 0 && (descriptors[receiveDescriptorReceiveIndex].DESC3 & ETH_DMARXNDESCWBF_LD) != 0;
-            descriptors[receiveDescriptorReceiveIndex].DESC0 = 0; //Buffer address
+            descriptors[receiveDescriptorReceiveIndex].DESC0 = 0; // Buffer address
             ++receivedFrameBuffers;
             --receivedFramesAllocated;
             ++receiveDescriptorReceiveIndex;
@@ -268,6 +262,11 @@ namespace hal
         while (receivedFramesAllocated != descriptors.size())
             if (!RequestReceiveBuffer())
                 break;
+
+        // Enable the MAC reception
+        peripheralEthernet[0]->MACCR |= ETH_MACCR_RE;
+        // Start Receive
+        peripheralEthernet[0]->DMACRCR |= ETH_DMACRCR_SR;
     }
 
     bool EthernetMacStm::ReceiveDescriptors::RequestReceiveBuffer()
@@ -279,11 +278,10 @@ namespace hal
             return false;
 
         descriptors[receiveDescriptorAllocatedIndex].DESC0 = reinterpret_cast<uint32_t>(buffer.begin());
+        descriptors[receiveDescriptorAllocatedIndex].BackupAddr0 = reinterpret_cast<uint32_t>(buffer.begin());
         descriptors[receiveDescriptorAllocatedIndex].DESC3 |= ETH_DMARXNDESCRF_OWN | ETH_DMARXNDESCRF_IOC | ETH_DMARXNDESCRF_BUF1V;
 
         __DSB();
-
-        peripheralEthernet[0]->DMACRCR |= ETH_DMACRCR_SR; //Start Receive
 
         ++receivedFramesAllocated;
         ++receiveDescriptorAllocatedIndex;
@@ -323,7 +321,7 @@ namespace hal
         else
             descriptors[sendDescriptorIndex].DESC3 &= ~ETH_DMATXNDESCRF_LD;
 
-        //Clear status bits
+        // Clear status bits
         descriptors[sendDescriptorIndex].DESC3 &= ~(ETH_DMATXNDESCWBF_DB | ETH_DMATXNDESCWBF_UF | ETH_DMATXNDESCWBF_ED | ETH_DMATXNDESCWBF_CC | ETH_DMATXNDESCWBF_EC | ETH_DMATXNDESCWBF_LCO | ETH_DMATXNDESCWBF_NC | ETH_DMATXNDESCWBF_LCA | ETH_DMATXNDESCWBF_PCE | ETH_DMATXNDESCWBF_FF | ETH_DMATXNDESCWBF_JT | ETH_DMATXNDESCWBF_ES | ETH_DMATXNDESCWBF_IHE);
 
         __DMB();
