@@ -32,11 +32,15 @@ namespace hal
         {
         public:
             ReceiveDescriptors(EthernetMacStm& ethernetMac);
+            uint32_t receiveDescriptorAllocatedIndex = 0;
+            uint32_t receiveDescriptorReceiveIndex = 0;
+            uint32_t receivedFrameBuffers = 0;
+            uint8_t receivedFramesAllocated = 0;
 
             void ReceivedFrame();
             void RequestReceiveBuffers();
 
-            alignas(uint64_t) std::array<ETH_DMADescTypeDef, 8> descriptors;
+            alignas(uint64_t) std::array<ETH_DMADescTypeDef, 4> descriptors;
 
         private:
             bool RequestReceiveBuffer();
@@ -45,10 +49,6 @@ namespace hal
             EthernetMacStm& ethernetMac;
 
 
-            uint32_t receiveDescriptorAllocatedIndex = 0;
-            uint32_t receiveDescriptorReceiveIndex = 0;
-            uint32_t receivedFrameBuffers = 0;
-            uint8_t receivedFramesAllocated = 0;
         };
 
         class SendDescriptors

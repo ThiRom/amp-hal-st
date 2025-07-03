@@ -56,9 +56,9 @@ namespace hal
         // Set Channel Rx descriptor list address register
         peripheralEthernet[0]->DMACRDLAR = reinterpret_cast<uint32_t>(&receiveDescriptors.descriptors[0]);
         // Set tail pointer to last element
-        peripheralEthernet[0]->DMACRDTPR = reinterpret_cast<uint32_t>(&receiveDescriptors.descriptors[8 - 1]);
+        peripheralEthernet[0]->DMACRDTPR = reinterpret_cast<uint32_t>(&receiveDescriptors.descriptors[0]);
         // Set Channel Rx descriptor ring length register (must be len - 1)
-        peripheralEthernet[0]->DMACRDRLR = 8 - 1;
+        peripheralEthernet[0]->DMACRDRLR = 4 - 1;
 
         // Set MAC address
         peripheralEthernet[0]->MACA0LR = reinterpret_cast<const uint32_t*>(macAddress.data())[0];
@@ -279,9 +279,15 @@ namespace hal
 
         descriptors[receiveDescriptorAllocatedIndex].DESC0 = reinterpret_cast<uint32_t>(buffer.begin());
         descriptors[receiveDescriptorAllocatedIndex].BackupAddr0 = reinterpret_cast<uint32_t>(buffer.begin());
-        descriptors[receiveDescriptorAllocatedIndex].DESC3 |= ETH_DMARXNDESCRF_OWN | ETH_DMARXNDESCRF_IOC | ETH_DMARXNDESCRF_BUF1V;
+        descriptors[receiveDescriptorAllocatedIndex].DESC3 = ETH_DMARXNDESCRF_OWN | ETH_DMARXNDESCRF_IOC | ETH_DMARXNDESCRF_BUF1V;
 
         __DSB();
+
+        /* DMB instruction to avoid race condition */
+        __DMB();
+
+        // Set tail pointer to last element
+        peripheralEthernet[0]->DMACRDTPR = reinterpret_cast<uint32_t>(&descriptors[receiveDescriptorAllocatedIndex]);
 
         ++receivedFramesAllocated;
         ++receiveDescriptorAllocatedIndex;
