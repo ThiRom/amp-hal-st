@@ -55,10 +55,10 @@ namespace hal
 
         // Set Channel Rx descriptor list address register
         peripheralEthernet[0]->DMACRDLAR = reinterpret_cast<uint32_t>(&receiveDescriptors.descriptors[0]);
-        // Set tail pointer to last element
+        // Init tail pointer to first element, will be changed after allocation of buffer
         peripheralEthernet[0]->DMACRDTPR = reinterpret_cast<uint32_t>(&receiveDescriptors.descriptors[0]);
         // Set Channel Rx descriptor ring length register (must be len - 1)
-        peripheralEthernet[0]->DMACRDRLR = 4 - 1;
+        peripheralEthernet[0]->DMACRDRLR = 8 - 1;
 
         // Set MAC address
         peripheralEthernet[0]->MACA0LR = reinterpret_cast<const uint32_t*>(macAddress.data())[0];

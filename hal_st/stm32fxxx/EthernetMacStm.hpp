@@ -40,7 +40,7 @@ namespace hal
             void ReceivedFrame();
             void RequestReceiveBuffers();
 
-            alignas(uint64_t) std::array<ETH_DMADescTypeDef, 4> descriptors;
+            alignas(uint64_t) std::array<ETH_DMADescTypeDef, 8> descriptors;
 
         private:
             bool RequestReceiveBuffer();
