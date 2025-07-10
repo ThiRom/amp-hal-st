@@ -305,7 +305,7 @@ namespace hal
             descriptor.DESC0 = 0;
             descriptor.DESC1 = 0;
             descriptor.DESC2 = 0;
-            descriptor.DESC3 = ETH_DMATXNDESCRF_CIC_IPHDR_PAYLOAD_INSERT_PHDR_CALC;
+            descriptor.DESC3 = 0;
         }
     }
 
@@ -348,6 +348,7 @@ namespace hal
 
         // Start transmission -> issue a poll command to Tx DMA by writing address of next immediate free descriptor
         peripheralEthernet[0]->DMACTDTPR = reinterpret_cast<uint32_t>(&descriptors[sendDescriptorIndex]);
+        triggercounter++;
     }
 
     void EthernetMacStm::SendDescriptors::SentFrame()
@@ -358,6 +359,7 @@ namespace hal
         assert(sentDone);
         if (sentDone)
         {
+            sendcounter++;
             descriptors[previousDescriptor].DESC3 &= ~ETH_DMATXNDESCRF_LD;
             ethernetMac.GetObserver().SentFrame();
         }

@@ -1,6 +1,7 @@
 #ifndef HAL_ETHERNET_MAC_STM_HPP
 #define HAL_ETHERNET_MAC_STM_HPP
 
+#include <cstdint>
 #include DEVICE_HEADER
 #include "generated/stm32fxxx/PeripheralTable.hpp"
 #include "hal/interfaces/Ethernet.hpp"
@@ -63,6 +64,8 @@ namespace hal
         private:
             EthernetMacStm& ethernetMac;
 
+            uint32_t sendcounter = 0;
+            uint32_t triggercounter = 0;
             uint32_t sendDescriptorIndexFirst = 0;
             uint32_t sendDescriptorIndex = 0;
             bool sendFirst = true;
