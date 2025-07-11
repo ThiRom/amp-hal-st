@@ -314,7 +314,9 @@ namespace hal
         assert((descriptors[sendDescriptorIndex].DESC3 & ETH_DMATXNDESCRF_OWN) == 0);
         descriptors[sendDescriptorIndex].DESC0 = reinterpret_cast<uint32_t>(data.begin());
         descriptors[sendDescriptorIndex].DESC1 = 0;
-        descriptors[sendDescriptorIndex].DESC2 = data.size() | ETH_DMATXNDESCRF_IOC; // Set IOC bit here
+        descriptors[sendDescriptorIndex].DESC2 = data.size() | ETH_DMATXNDESCRF_IOC;
+        if(last)
+            descriptors[sendDescriptorIndex].DESC2 |= ETH_DMATXNDESCRF_IOC; // Set IOC bit on last
         MODIFY_REG(descriptors[sendDescriptorIndex].DESC3, ETH_DMATXNDESCRF_B2L, 0);
 
         if (sendFirst)
@@ -355,7 +357,7 @@ namespace hal
     {
         uint32_t previousDescriptor = sendDescriptorIndex != 0 ? sendDescriptorIndex - 1 : descriptors.size() - 1;
 
-        bool sentDone = (descriptors[previousDescriptor].DESC3 & ETH_DMATXNDESCRF_FD) != 0 && (descriptors[previousDescriptor].DESC3 & ETH_DMATXCDESC_OWN) == 0;
+        bool sentDone = (descriptors[previousDescriptor].DESC3 & ETH_DMATXCDESC_OWN) == 0;
         assert(sentDone);
         if (sentDone)
         {
